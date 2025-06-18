@@ -16,11 +16,12 @@ from pathlib import Path
 from datetime import datetime
 import time
 import json
+from collections import Counter
 
 
 class CircuitSubmitter():
     """A central interface for individual benchmarks to submit circuits."""
-    def __init__(self, benchmark_name: str, device_name: str = "noisy_sim"):
+    def __init__(self, benchmark_name: str, device_name: str = "noisy_sim", temp_data = True):
         """
         Args:
             benchmark_name: the name of the benchmark.
@@ -32,6 +33,10 @@ class CircuitSubmitter():
         self.initialise()
         self.circuits_padded = 0
         self.tasks = []
+        self.logicalGates = Counter()
+        self.physicalGates = Counter()
+        self.temp_data = temp_data
+
 
     def initialise(self):
         """Initialise the folder structure and record device calibration details."""
@@ -52,6 +57,10 @@ class CircuitSubmitter():
 
         self.circuits_path = self.benchmark_path + '/circuits'
         Path(self.circuits_path).mkdir(parents=True, exist_ok=True)
+
+        folder_name = "temp_benchmark_data" if self.temp_data else "benchmark_data"
+        self.benchmark_data_path = os.path.dirname(os.path.realpath(__file__)) + f"/../{folder_name}/" + \
+                            f"{self.device_name}/{datetime.today().strftime('%Y-%m-%d')}"
     
     def transpile(self, circuits: list[QuantumCircuit], verbatim: bool = True) -> list[Circuit]:
         """Transpile the circuits to use native gates of self.device_name."""
