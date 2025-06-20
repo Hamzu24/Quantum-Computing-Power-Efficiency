@@ -16,13 +16,11 @@ from pathlib import Path
 from datetime import datetime
 import time
 import json
-from collections import Counter
-from power_module import PowerModule
 
 
 class CircuitSubmitter():
     """A central interface for individual benchmarks to submit circuits."""
-    def __init__(self, benchmark_name: str, device_name: str = "noisy_sim", is_temp_data = True, power_module: PowerModule = None, save_circuit_gates: bool = False):
+    def __init__(self, benchmark_name: str, device_name: str = "noisy_sim"):
         """
         Args:
             benchmark_name: the name of the benchmark.
@@ -31,18 +29,13 @@ class CircuitSubmitter():
         """
         self.benchmark_name = benchmark_name
         self.device_name = device_name
-        self.is_temp_data = is_temp_data
         self.initialise()
         self.circuits_padded = 0
         self.tasks = []
-        self.total_gates = Counter()
-        self.power_module = power_module
-        self.save_circuit_gates = save_circuit_gates
 
     def initialise(self):
         """Initialise the folder structure and record device calibration details."""
         # Create folders for the device and date
-        # simulator is the AWS simulator with backend helper LocalSimulator. noisy_sim and noiseless_sim have backend devices of SimWrappers
         self.backend = get_backend_helper(self.device_name)
         self.device_date_path = os.path.dirname(os.path.realpath(__file__)) + "/../hardware_runs/" + \
                             f"{self.device_name}/{datetime.today().strftime('%Y-%m-%d')}"
@@ -59,12 +52,7 @@ class CircuitSubmitter():
 
         self.circuits_path = self.benchmark_path + '/circuits'
         Path(self.circuits_path).mkdir(parents=True, exist_ok=True)
-
-        folder_name = "temp_benchmark_data" if self.is_temp_data else "benchmark_data"
-        self.benchmark_data_path = os.path.dirname(os.path.realpath(__file__)) + f"/../{folder_name}/" + \
-                            f"{self.device_name}/{datetime.today().strftime('%Y-%m-%d')}"
     
-    # A specific transpilaton function which takes the backend and makes sure the circuits are compatible
     def transpile(self, circuits: list[QuantumCircuit], verbatim: bool = True) -> list[Circuit]:
         """Transpile the circuits to use native gates of self.device_name."""
         if self.device_name != 'Aria' and self.device_name !='Harmony':
@@ -133,24 +121,6 @@ class CircuitSubmitter():
                 raise Exception("Terminated")
             else:
                 print('Submitting circuits...')
-
-    def populate_gate_counter(self, counter: Counter, circuits):
-        # Assume all the circuits are of the same data type
-        print(type(circuits[0]))
-        if isinstance(circuits[0], qiskit.circuit.quantumcircuit.QuantumCircuit):
-            for circuit in circuits:
-                counter.update(circuit.count_ops())
-        else:
-            for circuit in circuits:
-                print(dir(circuit))
-                instructions = circuit.instructions
-                for instruction in instructions:
-                    counter[instruction.operator.name] += 1
-    
-    def save_power_circuits(self):
-        consumption = self.power_module.calculate_power_consumption(self.total_gates)
-        with open(self.benchmark_path, "w") as f:
-            json.dumps(dict(consumption), f, indent=4)
     
     def submit_circuits(self, shots: int, verbatim: bool = True, skip_asking: bool = False, skip_transpilation: bool = False, print_summary: bool = True,
                         braket_circuits: list[Circuit] = None, qasm_strs: list[str] = None, 
@@ -172,8 +142,6 @@ class CircuitSubmitter():
         """
         if not skip_transpilation:
             # Get qiskit circuits from qasm
-
-            # CREATING CIRCUITS FROM QASM
             if qasm_strs is not None:
                 circuits = [QuantumCircuit.from_qasm_str(string) for string in qasm_strs]
             elif qasm_paths is not None:
@@ -181,8 +149,6 @@ class CircuitSubmitter():
             else:
                 raise ValueError("One and only one of qasm_strs or qasm_paths should be used")
 
-
-            # TRANSPILATION
             if self.device_name == "OQCDirect":
                 circuits = [c.qasm() for c in circuits]
             
@@ -197,7 +163,6 @@ class CircuitSubmitter():
             else:
                 # Transpile circuits if not using OQC Direct access
                 circuits = self.transpile(circuits, verbatim)
-
         else:
             if self.backend.__class__.__bases__[0].__name__ == 'AwsBackendHelper': 
                 if braket_circuits is None:
@@ -208,46 +173,32 @@ class CircuitSubmitter():
                 if qasm_strs is not None:
                     circuits = [QuantumCircuit.from_qasm_str(string) for string in qasm_strs]
 
-        # At this stage circuits is either a list of braket.circuits.Circuit or qiskit.QuantumCircuits depending on if device_name == "simulator" or not
-        # There is also the option for it to be raw qasm strings, however, the backends which used these inputs are no longer functional!
 
-        print(self)
-        self.populate_gate_counter(self.total_gates, circuits)
-
-        # Prompts user to confirm submitting circuits. This is for money costs for running servers. Just a simple input y or n.
+        # Prompts user to confirm submitting circuits
         self.estimate_cost_and_ask(len(circuits), shots, skip_asking, print_summary=print_summary)
 
         # Submit circuits
         batch_size = 100
         tasks = []
-        # Device name is noiseless_sim or noisy_sim usually
         for circuits_this_batch in [circuits[i:i + batch_size] for i in range(0, len(circuits), batch_size)]:
             if self.device_name == "simulator":
                 tasks_this_batch = [self.backend.device.run(circuit, shots=shots) for circuit in circuits_this_batch]
             else:
                 task_batch = self.backend.device.run_batch(circuits_this_batch, shots=shots, max_parallel=batch_size, inputs=inputs)
                 tasks_this_batch = task_batch.tasks
-            for i, task in enumerate(tasks_this_batch):
+            for task in tasks_this_batch:
                 cid = task.id.replace('/', '=').replace(':', '_') # Some magic symbols to make a good folder name
                 task_path = self.circuits_path + '/' + cid
                 Path(task_path).mkdir(parents=True, exist_ok=True)
-
-                if self.save_circuit_gates:
-                    taskCounter = Counter()
-                    self.populate_gate_counter(taskCounter, circuits_this_batch)
-                    with open(task_path + "/gates.json", "w") as f:
-                        json.dump(dict(taskCounter), f, indent=4)
-
                 tasks.append(task)
 
                 # For braket simulator: directly dump the results
                 if self.device_name == "simulator":
-                    with open(task_path + "/results.json", "w") as f:
+                    with open(self.circuits_path + f"/{task.id}/results.json", "w+") as f:
                         json.dump(task.result(), f, indent=4, default=lambda o: str(o.tolist()) if isinstance(o, np.ndarray) else o.__dict__)
         if print_summary:
             print("Circuits have been submitted")
         self.tasks = tasks
-
         return tasks
     
     def retrieve_counts(self, circuit_ids: list[str] = None, wait: bool = True, print_timestamp_when_done = True):
@@ -301,11 +252,6 @@ class CircuitSubmitter():
                 json.dump(task.result(), f, indent=4, default=lambda o: str(o.tolist()) if isinstance(o, np.ndarray) else o.__dict__)
         all_counts = [task.result().measurement_counts for task in tasks]
         return all_counts
-
-    def retrieve_gates(self, circuit_ids: list[str] = None):
-        for cid in circuit_ids:
-            counts = [json.load(open(self.circuits_path + f"/{cid}/results.json")) for cid in circuit_ids]
-            return counts
     
     def convert_counts_to_qiskit(self, counts: dict):
         """Convert measurement counts into qiskit's reversed order.

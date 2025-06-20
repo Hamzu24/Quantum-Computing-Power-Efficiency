@@ -32,8 +32,6 @@ from _helpers.circuit_submitter import CircuitSubmitter
 from tqdm.auto import tqdm
 import uuid
 
-SKIP_ASKING = True
-
 
 def random_complex_matrix(n):
     return np.random.randn(n, n) + 1.0j * np.random.randn(n, n)
@@ -69,11 +67,7 @@ def apply_su4_layer(qc, num_qubits):
             qiskit.circuit.library.UnitaryGate(random_su4_gate), [qubit, qubit + 1]
         )
 
-"""
-Adds a layer of swap instructions to the qc passed in to permute the qubits into a random order
 
-Adds <= num_qubits instructions
-"""
 def apply_swap_layer(qc, num_qubits):
     permutation_list = np.random.permutation(num_qubits)
     init_order = np.arange(num_qubits)
@@ -124,15 +118,10 @@ def get_heavy_outputs(num_qubits, sorted_output_array):
     heavy_output_prob = np.sum(prob_above_median)
     return heavy_output_strings, prob_above_median, heavy_output_prob
 
-"""
-Makes a qv circuit, returning a qiskit.QuantumCircuit class
 
-INPUTS: num qubits is the number of qubits to make the qc for
-"""
 def qv_circuit(num_qubits=5, print_circuit=True):
     qc = qiskit.QuantumCircuit(num_qubits)
     for _ in range(num_qubits):
-        # Adds a swap and then a SU4 layer to the qc
         apply_qv_layer(qc, num_qubits)
     qc.measure_all()
     if print_circuit:
@@ -318,7 +307,7 @@ def plot_average_heavy_output(
         plt.show()
     # plt.clf()
 
-# A never used function!?
+
 def qv_trial(vol, noisy_sim, optimization_level=1):
     qc_ideal = qv_circuit(vol, print_circuit=False)
     qc_noisy = qc_ideal.copy()
@@ -343,7 +332,6 @@ def qv_trial(vol, noisy_sim, optimization_level=1):
 
 
 def generate_qv_circuits(num_qubit_list, num_trials=100, optimization_level=1):
-    # qc_list is a dictionary where the num_qubits for the trial accesses a list of qc_data strings which is num_trials long
     qc_list = {}
     for num_qubits in num_qubit_list:
         qc_list[num_qubits] = []
@@ -351,10 +339,9 @@ def generate_qv_circuits(num_qubit_list, num_trials=100, optimization_level=1):
         submitter_noiseless = CircuitSubmitter("quantum_volume", "noiseless_sim")
         for _ in range(num_trials):
             qc = qv_circuit(num_qubits=num_qubits, print_circuit=False)
-            # WILL NEED TO CHANGE THIS TO WHATEVER THE ACTUAL BASIS GATES ARE IN THE FUTURE
             qc = qiskit.transpile(qc, basis_gates=["rx", "ry", "rz", "cx"])
             submitter_noiseless.submit_circuits(
-                shots=1000, qasm_strs=[qc.qasm()], skip_asking=SKIP_ASKING, print_summary=False
+                shots=1000, qasm_strs=[qc.qasm()], skip_asking=True, print_summary=False
             )
             ideal_counts = submitter_noiseless.retrieve_counts(wait=True, print_timestamp_when_done=False)[0]
             sorted_ideal_prob_array, bitsrings = qiskit_counts_to_sorted_array(
@@ -373,7 +360,6 @@ def generate_qv_circuits(num_qubit_list, num_trials=100, optimization_level=1):
 def run_qv_test(
     num_qubits_list=[2, 3], num_trials=100, optimization_level=1, circuit_submitter=None
 ):
-    # Generates the QV circuits for all num_qubits
     qc_list = generate_qv_circuits(
         num_qubits_list, num_trials=num_trials, optimization_level=optimization_level
     )
@@ -382,7 +368,7 @@ def run_qv_test(
     for n_qubits in num_qubits_list:
         circuits = [trial["qc"].qasm() for trial in qc_list[n_qubits]]
         circuit_submitter.submit_circuits(
-            shots=1000, qasm_strs=circuits, skip_asking=SKIP_ASKING, print_summary=False
+            shots=1000, qasm_strs=circuits, skip_asking=True, print_summary=False
         )
         all_counts = circuit_submitter.retrieve_counts(wait=True)
         noisy_prob_arrays = [qiskit_counts_to_probs(counts) for counts in all_counts]
