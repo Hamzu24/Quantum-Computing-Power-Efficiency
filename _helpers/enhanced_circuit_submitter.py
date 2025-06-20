@@ -1,3 +1,4 @@
+import circuit_submitter
 from circuit_submitter import CircuitSubmitter as OriginalCircuitSubmitter
 from collections import Counter
 from pathlib import Path
@@ -8,7 +9,8 @@ from qiskit.providers.aer import AerJob
 from qiskit.circuit.quantumcircuit import QuantumCircuit
 from noisy_simulator_wrappers import QiskitTaskWrapper
 from typing import Iterable
-from braket.circuit import BraketCircuit
+from braket.circuits import Circuit as BraketCircuit
+from braket.aws import AwsQuantumTask
 
 class CircuitSubmitter(OriginalCircuitSubmitter):
     def __init__(self, benchmark_name: str, power_config_path: Path = None, power_config_dict: dict = None, device_name: str = "noisy_sim"):
@@ -40,46 +42,51 @@ class CircuitSubmitter(OriginalCircuitSubmitter):
     def submit_circuits(self, shots: int, verbatim: bool = True, skip_asking: bool = False, skip_transpilation: bool = False, print_summary: bool = True, braket_circuits: list = None, qasm_strs: list[str] = None, qasm_paths: list[str] = None, inputs: dict[str, float] = None) -> Union[list[AwsQuantumTask], list[LocalQuantumTask]]:
         tasks = super().submit_circuits(shots, verbatim, skip_asking, skip_transpilation, print_summary, braket_circuits, qasm_strs, qasm_paths, inputs)
 
-        circuits = _get_circuits_from_tasks(tasks)
+        circuits = self._get_circuits_from_tasks(tasks)
         self._populate_gate_counter(self.total_gates, circuits)
 
         return tasks
 
     def get_power_consumption(self):
-        consumption = self.power_module._calculate_power_consumption(self.total_gates)
-        with open(self.benchmark_path, "w") as f:
-            json.dumps(dict(consumption), f, indent=4)
-    
-    def _get_circuits_from_tasks(tasks: Union[list[LocalQuantumTask], list[QiskitTaskWrapper]]):
+        consumption = self._calculate_power_consumption(self.total_gates)
+        return consumption
+
+    def _get_circuits_from_tasks(self, tasks: Union[list[LocalQuantumTask], list[QiskitTaskWrapper]]):
         circuits = []
 
+        def get_circuits_from_aer_job(job: AerJob):
+            if hasattr(job, '_circuits'):
+                return job._circuits
+            elif hasattr(job, 'circuits'):
+                return job.circuits
+        
+            raise ValueError(f"Unable to extract the circuit from the AerJob: {job}")
+
         if not tasks:
-            return None #EMPTY CIRCUIT!
+            return None
         elif isinstance(tasks[0], QiskitTaskWrapper):
             for task in tasks:
                 job = task.task
-                circuit = _get_circuits_from_aer_job(job)
+                circuit = get_circuits_from_aer_job(job)
+                print(f"QiskitTaskWrapper has this circuit: {circuit}")
                 circuits.append(circuit)
         elif isinstance(tasks[0], LocalQuantumTask):
-            for circuit in circuits:
-                circuit = task.quantum_task_arn
+            for task in tasks:
+                result = task.result()
+                metadata = result.task_metadata
+                additional_metadata = result.additional_metadata
+                print(f"QuantumCircuit from Braket has this metadata: {metadata}\n{additional_metadata}")
+                circuit = result.task_metadata.braketSchemaHeader
                 circuits.append(circuit)
 
         return circuits
 
-    def _get_circuits_from_aer_job(job: AerJob):
-        if hasattr(job, '_circuits'):
-            return job._circuits
-        elif hasattr(job, 'circuits'):
-            return job.circuits
-        
-        raise ValueError(f"Unable to extract the circuit from the AerJob: {job}")
 
     def _populate_gate_counter(self, counter: Counter, circuits):
         def update_single_circuit(circuit):
-            if isinstance(circuits, QuantumCircuit):
+            if isinstance(circuit, QuantumCircuit):
                 counter.update(circuit.count_ops())
-            elif isinstance(circuits, BraketCircuit):
+            elif isinstance(circuit, BraketCircuit):
                 print(dir(circuit))
                 instructions = circuit.instructions
                 for instruction in instructions:
@@ -100,7 +107,9 @@ class CircuitSubmitter(OriginalCircuitSubmitter):
                 if error_if_incomplete:
                     print(f"The operation {operation} was not found in the config! Exiting now.")
                     raise KeyError(f"The key {operation} is required to be in the config!")
+
                 print(f"Operation not found in config: {operation}. Skipping...")
+                continue
 
             if consumption.get(operation) is None:
                 consumption[operation] = 0
@@ -109,5 +118,4 @@ class CircuitSubmitter(OriginalCircuitSubmitter):
         self.global_consumption = self.global_consumption + consumption
         return consumption
 
-import circuit_submitter
 circuit_submitter.CircuitSubmitter = CircuitSubmitter
