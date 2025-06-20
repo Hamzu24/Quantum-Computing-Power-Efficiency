@@ -14,12 +14,7 @@ from braket.aws import AwsQuantumTask
 
 class CircuitSubmitter(OriginalCircuitSubmitter):
     def __init__(self, benchmark_name: str, power_config_path: Path = None, power_config_dict: dict = None, device_name: str = "noisy_sim"):
-        """
-        Args:
-            benchmark_name: the name of the benchmark.
-            device_name: the name of the device.
-                Choose among "simulator", "noisy_sim", "noiseless_sim", "Aria".
-        """
+        print("patch me monkey")
         super().__init__()
         self.total_gates = Counter()
         self.global_consumption = Counter()

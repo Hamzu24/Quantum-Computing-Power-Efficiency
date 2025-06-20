@@ -2,6 +2,7 @@ from importlib.util import spec_from_file_location, module_from_spec
 from spec.loader import exec_module
 import pathlib
 import gc
+import enhanced_circuit_submitter
 from circuit_submitter import CircuitSubmitter
 from copy import copy
 
@@ -13,12 +14,12 @@ def get_submitters(objects):
     submitters = []
     devices_still_needed = copy(devices_needed)
 
-    for object in object:
-        if isinstance(object, CircuitSubmitter):
+    for obj in object:
+        if isinstance(obj, CircuitSubmitter):
             if object.device_name in devices_needed:
-                found_objects.append(object)
+                submitters.append(obj)
                 if object.device_name in devices_still_needed:
-                    devices_still_needed.remove(object.device_name)
+                    devices_still_needed.remove(obj.device_name)
 
     return submitters
 
