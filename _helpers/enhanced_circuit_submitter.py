@@ -1,41 +1,89 @@
-import circuit_submitter
-from circuit_submitter import CircuitSubmitter as OriginalCircuitSubmitter
+import _helpers.circuit_submitter
 from collections import Counter
 from pathlib import Path
 import json
-from typing import Union
+from typing import Iterable, Union
 from braket.tasks.local_quantum_task import LocalQuantumTask
 from qiskit.providers.aer import AerJob
 from qiskit.circuit.quantumcircuit import QuantumCircuit
-from noisy_simulator_wrappers import QiskitTaskWrapper
-from typing import Iterable
+from _helpers.noisy_simulator_wrappers import QiskitTaskWrapper
 from braket.circuits import Circuit as BraketCircuit
 from braket.aws import AwsQuantumTask
+from pprint import pprint
 
-class CircuitSubmitter(OriginalCircuitSubmitter):
-    def __init__(self, benchmark_name: str, power_config_path: Path = None, power_config_dict: dict = None, device_name: str = "noisy_sim"):
-        print("patch me monkey")
-        super().__init__()
+with open("configs/power_configs.json", 'r') as f:
+    power_configs = json.load(f)
+
+try:
+    with open("configs/power_configs.json", "r") as f:
+        power_configs = json.load(f)
+except FileNotFoundError:
+    raise FileNotFoundError("Power config file not found")
+except json.JSONDecodeError as e:
+    raise ValueError(f"Invalid JSON in power config file: {e}")
+
+try:
+    with open("configs/noise_models.json", "r") as f:
+        noise_models = json.load(f)
+except FileNotFoundError:
+    raise FileNotFoundError("noise model file not found")
+except json.JSONDecodeError as e:
+    raise ValueError(f"Invalid JSON in power config file: {e}")
+
+class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
+    def __init__(self, benchmark_name: str, device_name: str = "noisy_sim"):
+        super().__init__(benchmark_name, device_name)
         self.total_gates = Counter()
         self.global_consumption = Counter()
 
-        if power_config_path and power_config_dict:
-            raise ValueError("Please provide either power_config_path OR power_config_dict, not both!")
-        elif power_config_path:
-            try:
-                with open(power_config_path, "r") as f:
-                    self.power_config = json.load(f)
-            except FileNotFoundError:
-                raise FileNotFoundError(f"Power config file not found: {power_config_path}")
-            except json.JSONDecodeError as e:
-                raise ValueError(f"Invalid JSON in power config file: {e}")
-        elif power_config_dict:
-            self.power_config = power_config_dict
+        if power_configs.get(device_name) is not None:
+            self.power_config = power_configs.get(device_name)
         else:
-            raise ValueError("Please provide either power_config_path or power_config_dict!")
+            self.power_config = power_configs.get("default_power_config")
+        
+        if power_configs.get(device_name) is not None:
+            self.backend.noise_model = noise_models.get(device_name)
     
+    def _has_a_measurement(circuits, circuit_type: str = "qasm_strs"):
+        def qasm_string_has_measurement(qasm_string):
+            measurement_keywords = ['measure', 'reset']
+            
+            for keyword in measurement_keywords:
+                if keyword in qasm_string.lower():
+                    return True
+            
+            return False
+        
+        if isinstance(circuits, Iterable) and not isinstance(circuits, str):
+            for circuit in circuits:
+                if self._has_a_measurement(circuit, circuit_type):
+                    return True
+            return False
+        
+        if circuit_type == "qasm_strs":
+            if qasm_string_has_measurement(circuits):
+                return True
+        elif circuit_type == "qasm_paths":
+            qasm_strs = QuantumCircuit.from_qasm_file(circuits).qasm()
+            if qasm_string_has_measurement(qasm_strs):
+                return True
+        elif circuit_type == "braket_circuits":
+            raise ValueError("measurement checking not implemented for braket circuits!")
+        
+        return False
+
     def submit_circuits(self, shots: int, verbatim: bool = True, skip_asking: bool = False, skip_transpilation: bool = False, print_summary: bool = True, braket_circuits: list = None, qasm_strs: list[str] = None, qasm_paths: list[str] = None, inputs: dict[str, float] = None) -> Union[list[AwsQuantumTask], list[LocalQuantumTask]]:
         tasks = super().submit_circuits(shots, verbatim, skip_asking, skip_transpilation, print_summary, braket_circuits, qasm_strs, qasm_paths, inputs)
+        if qasm_strs is not None:
+            has_a_measurement = self._has_a_measurement(qasm_strs, "qasm_strs")
+        elif qasm_paths is not None:
+            has_a_measurement = self._has_a_measurement(qasm_paths, "qasm_paths")
+        else:
+            has_a_measurement = self._has_a_measurement(braket_circuits, "braket_circuits")
+        
+        if has_a_measurement:
+            pass
+        # Save it!
 
         circuits = self._get_circuits_from_tasks(tasks)
         self._populate_gate_counter(self.total_gates, circuits)
@@ -63,7 +111,6 @@ class CircuitSubmitter(OriginalCircuitSubmitter):
             for task in tasks:
                 job = task.task
                 circuit = get_circuits_from_aer_job(job)
-                print(f"QiskitTaskWrapper has this circuit: {circuit}")
                 circuits.append(circuit)
         elif isinstance(tasks[0], LocalQuantumTask):
             for task in tasks:
@@ -91,7 +138,8 @@ class CircuitSubmitter(OriginalCircuitSubmitter):
             update_single_circuit(circuits)
         else:
             for circuit in circuits:
-                update_single_circuit(circuit)
+                self._populate_gate_counter(counter, circuit)
+        print(counter)
 
     def _calculate_power_consumption(self, gates: Counter, silent: bool = False, error_if_incomplete: bool = True):
         consumption = Counter()
@@ -113,4 +161,4 @@ class CircuitSubmitter(OriginalCircuitSubmitter):
         self.global_consumption = self.global_consumption + consumption
         return consumption
 
-circuit_submitter.CircuitSubmitter = CircuitSubmitter
+_helpers.circuit_submitter.CircuitSubmitter = CircuitSubmitter
