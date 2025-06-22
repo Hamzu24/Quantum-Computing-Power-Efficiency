@@ -4,19 +4,21 @@ import _helpers.enhanced_circuit_submitter
 from copy import copy
 import runpy
 import json
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend
 
 PATH = "tutorials/circuit_execution_quality_metrics/quantum_volume/quantum_volume.py"
 power_config_path = "power_config.json"
-devices_needed = []
+devices_needed = ["noisy_sim"]
 
 def get_submitters(objects):
-    submitters = []
+    submitters = {}
     devices_still_needed = copy(devices_needed)
 
     for obj in objects:
         if isinstance(obj, _helpers.circuit_submitter.CircuitSubmitter):
             if obj.device_name in devices_needed:
-                submitters.append(obj)
+                submitters[obj.device_name] = obj
                 if obj.device_name in devices_still_needed:
                     devices_still_needed.remove(obj.device_name)
 
@@ -28,3 +30,7 @@ gc.collect()
 objects = gc.get_objects()
 
 submitters = get_submitters(objects)
+total_consumption, staggered_consumptions = submitters['noisy_sim'].get_power_consumption()
+print(f"total power usage: {sum(total_consumption.values())}\n\n")
+print(f"2 qubit power consumption: {sum(staggered_consumptions[0].values())}")
+print(f"3 qubit power consumption: {sum(staggered_consumptions[1].values())}")

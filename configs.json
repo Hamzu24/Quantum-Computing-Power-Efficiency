@@ -1,0 +1,17 @@
+{
+    "device_tracking": {
+        "noiseless_sim": 0,
+        "noisy_sim": 2
+    },
+    "power_configs": {
+        "default_power_config": {
+            "cx": 2,
+            "rz": 3,
+            "sx": 1
+        }
+            
+    },
+    "noise_models": {
+    
+    }
+}

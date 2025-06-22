@@ -10,31 +10,27 @@ from _helpers.noisy_simulator_wrappers import QiskitTaskWrapper
 from braket.circuits import Circuit as BraketCircuit
 from braket.aws import AwsQuantumTask
 from pprint import pprint
-
-with open("configs/power_configs.json", 'r') as f:
-    power_configs = json.load(f)
+from copy import deepcopy
 
 try:
-    with open("configs/power_configs.json", "r") as f:
-        power_configs = json.load(f)
+    with open("configs.json", 'r') as f:
+        configs = json.load(f)
 except FileNotFoundError:
     raise FileNotFoundError("Power config file not found")
 except json.JSONDecodeError as e:
     raise ValueError(f"Invalid JSON in power config file: {e}")
 
-try:
-    with open("configs/noise_models.json", "r") as f:
-        noise_models = json.load(f)
-except FileNotFoundError:
-    raise FileNotFoundError("noise model file not found")
-except json.JSONDecodeError as e:
-    raise ValueError(f"Invalid JSON in power config file: {e}")
+power_configs = configs.get("power_configs")
+noise_models = configs.get("noise_models")
+device_tracking = configs.get("device_tracking")
+
+if power_configs is None or noise_models is None or device_tracking is None:
+    raise ValueError("Invalid config file! Must include power_configs, noise_models and device_tracking config options!")
 
 class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
     def __init__(self, benchmark_name: str, device_name: str = "noisy_sim"):
         super().__init__(benchmark_name, device_name)
         self.total_gates = Counter()
-        self.global_consumption = Counter()
 
         if power_configs.get(device_name) is not None:
             self.power_config = power_configs.get(device_name)
@@ -43,8 +39,15 @@ class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
         
         if power_configs.get(device_name) is not None:
             self.backend.noise_model = noise_models.get(device_name)
+        
+        if device_tracking.get(device_name) is not None:
+            self.tracking_number = device_tracking.get(device_name)
+        else:
+            self.tracking_number = 0
+        
+        self.gate_history = []
     
-    def _has_a_measurement(circuits, circuit_type: str = "qasm_strs"):
+    def _has_a_measurement(self, circuits, circuit_type: str = "qasm_strs"):
         def qasm_string_has_measurement(qasm_string):
             measurement_keywords = ['measure', 'reset']
             
@@ -74,6 +77,16 @@ class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
 
     def submit_circuits(self, shots: int, verbatim: bool = True, skip_asking: bool = False, skip_transpilation: bool = False, print_summary: bool = True, braket_circuits: list = None, qasm_strs: list[str] = None, qasm_paths: list[str] = None, inputs: dict[str, float] = None) -> Union[list[AwsQuantumTask], list[LocalQuantumTask]]:
         tasks = super().submit_circuits(shots, verbatim, skip_asking, skip_transpilation, print_summary, braket_circuits, qasm_strs, qasm_paths, inputs)
+
+        circuits = self._get_circuits_from_tasks(tasks)
+
+        if self.tracking_number <= 0:
+            return tasks
+        self._populate_gate_counter(self.total_gates, circuits)
+
+
+        if self.tracking_number <= 1:
+            return tasks
         if qasm_strs is not None:
             has_a_measurement = self._has_a_measurement(qasm_strs, "qasm_strs")
         elif qasm_paths is not None:
@@ -82,17 +95,25 @@ class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
             has_a_measurement = self._has_a_measurement(braket_circuits, "braket_circuits")
         
         if has_a_measurement:
-            pass
-        # Save it!
-
-        circuits = self._get_circuits_from_tasks(tasks)
-        self._populate_gate_counter(self.total_gates, circuits)
+            self.gate_history.append(deepcopy(self.total_gates))
 
         return tasks
 
     def get_power_consumption(self):
-        consumption = self._calculate_power_consumption(self.total_gates)
-        return consumption
+        total_consumption = self._calculate_power_consumption(self.total_gates)
+
+        staggered_consumptions = []
+        prev_consumption = Counter()
+        for gate_count in self.gate_history:
+            staggered_consumption = self._calculate_power_consumption(gate_count)
+
+            new_prev_consumption = staggered_consumption
+            staggered_consumption = staggered_consumption - prev_consumption
+            prev_consumption = new_prev_consumption
+
+            staggered_consumptions.append(staggered_consumption)
+
+        return total_consumption, staggered_consumptions
 
     def _get_circuits_from_tasks(self, tasks: Union[list[LocalQuantumTask], list[QiskitTaskWrapper]]):
         circuits = []
@@ -129,7 +150,6 @@ class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
             if isinstance(circuit, QuantumCircuit):
                 counter.update(circuit.count_ops())
             elif isinstance(circuit, BraketCircuit):
-                print(dir(circuit))
                 instructions = circuit.instructions
                 for instruction in instructions:
                     counter[instruction.operator.name] += 1
@@ -143,7 +163,10 @@ class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
 
     def _calculate_power_consumption(self, gates: Counter, silent: bool = False, error_if_incomplete: bool = True):
         consumption = Counter()
+        operations_to_ignore = ["save_density_matrix", "barrier"]
         for operation, count in gates.items():
+            if operation in operations_to_ignore:
+                continue
 
             operation_cost = self.power_config.get(operation)
             if operation_cost is None:
@@ -158,7 +181,6 @@ class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
                 consumption[operation] = 0
             consumption[operation] += count*operation_cost
 
-        self.global_consumption = self.global_consumption + consumption
         return consumption
 
 _helpers.circuit_submitter.CircuitSubmitter = CircuitSubmitter

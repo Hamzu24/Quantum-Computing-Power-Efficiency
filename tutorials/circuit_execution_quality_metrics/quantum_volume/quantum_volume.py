@@ -370,8 +370,6 @@ def run_qv_test(
         circuit_submitter = CircuitSubmitter("quantum_volume", "noisy_sim")
     for n_qubits in num_qubits_list:
         circuits = [trial["qc"].qasm() for trial in qc_list[n_qubits]]
-        print("STOPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP\n\n\n\n\n\n\n\n\n\n")
-        pprint.pprint(circuits)
         circuit_submitter.submit_circuits(
             shots=1000, qasm_strs=circuits, skip_asking=True, print_summary=False
         )
@@ -399,17 +397,12 @@ def run_qv_test(
 if __name__ == "__main__":
     from tqdm import tqdm
 
-    # MY CODE
-    print("Before patching:")
-    print(f"Our class: {CircuitSubmitter}")
-    print(f"Our function: {CircuitSubmitter.submit_circuits}")
-    ###
-
     device_name = "noisy_sim"
     submitter = CircuitSubmitter(benchmark_name="quantum_volume", device_name=device_name)
     filepath = submitter.benchmark_path
 
-    num_qubits_list = [2, 3, 4, 5, 6, 7,]
+    #OLD: num_qubits_list = [2, 3, 4, 5, 6, 7,]
+    num_qubits_list = [2, 3] # NEW!
     num_trials = 200
     optimization_level = 1
 
