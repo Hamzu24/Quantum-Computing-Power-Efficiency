@@ -12,6 +12,9 @@
             
     },
     "noise_models": {
-    
+        "default_noise_model": {
+            "type": "fake_backend",
+            "name": "fakeAuckland"
+        }
     }
 }

@@ -167,4 +167,4 @@ cython_debug/
 
 # HERE ONWARDS IS WHAT I ADDED
 
-temp_benchmark_data/
+qiskit_backend_configs/

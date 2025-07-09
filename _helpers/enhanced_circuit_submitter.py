@@ -11,21 +11,26 @@ from braket.circuits import Circuit as BraketCircuit
 from braket.aws import AwsQuantumTask
 from pprint import pprint
 from copy import deepcopy
+from _helpers.nm_helper import craft_noise_model
 
-try:
-    with open("configs.json", 'r') as f:
-        configs = json.load(f)
-except FileNotFoundError:
-    raise FileNotFoundError("Power config file not found")
-except json.JSONDecodeError as e:
-    raise ValueError(f"Invalid JSON in power config file: {e}")
+power_configs = None
+noise_models = None
+device_tracking = None
+def load_config_file(config_path):
+    try:
+        with open(config_path, 'r') as f:
+            configs = json.load(f)
+    except FileNotFoundError:
+        raise FileNotFoundError("Power config file not found")
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Invalid JSON in power config file: {e}")
 
-power_configs = configs.get("power_configs")
-noise_models = configs.get("noise_models")
-device_tracking = configs.get("device_tracking")
+    power_configs = configs.get("power_configs")
+    noise_models = configs.get("noise_models")
+    device_tracking = configs.get("device_tracking")
 
-if power_configs is None or noise_models is None or device_tracking is None:
-    raise ValueError("Invalid config file! Must include power_configs, noise_models and device_tracking config options!")
+    if power_configs is None or noise_models is None or device_tracking is None:
+        raise ValueError("Invalid config file! Must include power_configs, noise_models and device_tracking config options!")
 
 class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
     def __init__(self, benchmark_name: str, device_name: str = "noisy_sim"):
@@ -37,8 +42,13 @@ class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
         else:
             self.power_config = power_configs.get("default_power_config")
         
-        if power_configs.get(device_name) is not None:
-            self.backend.noise_model = noise_models.get(device_name)
+        if device_name in ["noisy_sim", "noisy_sim_with_shots"]:
+            if noise_models.get(device_name) is not None:
+                noise_model_specs = noise_models.get(device_name)
+                self.backend.noise_model = craft_noise_model(noise_model_specs)
+            elif noise_models.get("default_noise_model") is not None:
+                noise_model_specs = noise_models.get("default_noise_model")
+                self.backend.noise_model = craft_noise_model(noise_model_specs)
         
         if device_tracking.get(device_name) is not None:
             self.tracking_number = device_tracking.get(device_name)
@@ -46,6 +56,11 @@ class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
             self.tracking_number = 0
         
         self.gate_history = []
+
+        if self.device_name in ["noisy_sim", "noisy_sim_with_shots"]:
+            print(f"the backend being used is {self.backend}, noise model is {self.backend.noise_model.__class__.__name__}")
+        else:
+            print(f"the backend being used is {self.backend}")
     
     def _has_a_measurement(self, circuits, circuit_type: str = "qasm_strs"):
         def qasm_string_has_measurement(qasm_string):
@@ -138,7 +153,7 @@ class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
                 result = task.result()
                 metadata = result.task_metadata
                 additional_metadata = result.additional_metadata
-                print(f"QuantumCircuit from Braket has this metadata: {metadata}\n{additional_metadata}")
+                #print(f"QuantumCircuit from Braket has this metadata: {metadata}\n{additional_metadata}")
                 circuit = result.task_metadata.braketSchemaHeader
                 circuits.append(circuit)
 
@@ -159,7 +174,6 @@ class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
         else:
             for circuit in circuits:
                 self._populate_gate_counter(counter, circuit)
-        print(counter)
 
     def _calculate_power_consumption(self, gates: Counter, silent: bool = False, error_if_incomplete: bool = True):
         consumption = Counter()
@@ -183,4 +197,6 @@ class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
 
         return consumption
 
+CONFIG_PATH = "configs.json"
+load_config_file(CONFIG_PATH)
 _helpers.circuit_submitter.CircuitSubmitter = CircuitSubmitter
