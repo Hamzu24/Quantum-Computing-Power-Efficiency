@@ -42,10 +42,21 @@ class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
         if device_name in ["noisy_sim", "noisy_sim_with_shots"]:
             if noise_models.get(device_name) is not None:
                 noise_model_specs = noise_models.get(device_name)
-                self.backend.noise_model = craft_noise_model(noise_model_specs)
+                noise_model_instance = craft_noise_model(noise_model_specs)
+                self.backend.noise_model = noise_model_instance
+                self.backend.device.noise_model = noise_model_instance
+                self.backend.device.sim = self.backend.device.backend(
+                    method="density_matrix", noise_model=noise_model_instance
+                )
+
             elif noise_models.get("default_noise_model") is not None:
                 noise_model_specs = noise_models.get("default_noise_model")
-                self.backend.noise_model = craft_noise_model(noise_model_specs)
+                noise_model_instance = craft_noise_model(noise_model_specs)
+                self.backend.noise_model = noise_model_instance
+                self.backend.device.noise_model = noise_model_instance
+                self.backend.device.sim = self.backend.device.backend(
+                    method="density_matrix", noise_model=noise_model_instance
+                )
         
         if device_tracking.get(device_name) is not None:
             self.tracking_number = device_tracking.get(device_name)
@@ -55,7 +66,7 @@ class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
         self.gate_history = []
 
         if self.device_name in ["noisy_sim", "noisy_sim_with_shots"]:
-            print(f"the backend being used is {self.backend}, noise model is {self.backend.noise_model.__class__.__name__}")
+            print(f"the backend being used is {self.backend}, noise model is {self.backend.noise_model.name}, device noise model is {self.backend.device.noise_model.name}")
         else:
             print(f"the backend being used is {self.backend}")
     

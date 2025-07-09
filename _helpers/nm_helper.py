@@ -76,6 +76,21 @@ def extract_from_json(json_dict, values: dict[str, tuple[Any, dict[Any, Any]]], 
 
     return return_values
 
+def get_dynamic_backend(backend_name, parent_class):
+
+    class DynamicFakeBackend(parent_class):
+        conf_path_base = f"qiskit_backend_configs/{backend_name}/"
+        conf_filename = conf_path_base + f"conf_{backend_name}.json"
+        props_filename = conf_path_base + f"props_{backend_name}.json"
+        defs_filename = conf_path_base + f"defs_{backend_name}.json"
+
+        def _load_json(self, filename):
+            with open(filename) as f_json:
+                the_json = json.load(f_json)
+            return the_json
+    
+    return DynamicFakeBackend
+
 # Main function
 def craft_noise_model(config: dict):
     config_type = config.get("type")
@@ -86,33 +101,25 @@ def craft_noise_model(config: dict):
         backend_name = config["name"]
         download_config(backend_name, True)
 
-        first_match = next((item for item in EXISTING_MODELS if backend_name in item.lower()), None)
-        if first_match is None:
+        match = next((item for item in EXISTING_MODELS if backend_name in item.lower()), None)
+        if match is None:
             raise ValueError("The specified fake backend cannot be found in the supported models!")
-        
-        backend_class = EXISTING_MODELS[first_match]
 
-        conf_path_base = f"qiskit_backend_configs/{backend_name}/"
-        backend_class.conf_filename = conf_path_base + f"conf_{backend_name}.json"
-        backend_class.props_filename = conf_path_base + f"props_{backend_name}.json"
-        backend_class.defs_filename = conf_path_base + f"defs_{backend_name}.json"
+        matching_class = EXISTING_MODELS[match]
 
-        def patched_load_json(self, filename):
-            with open(filename) as f_json:
-                the_json = json.load(f_json)
-            return the_json
-
-        backend_class._load_json = patched_load_json
-
-        return EXISTING_MODELS[first_match]()
+        backend = get_dynamic_backend(backend_name, matching_class)()
+        noise_model = NoiseModel.from_backend(backend)
+        noise_model.name = config["name"]
+        return noise_model
 
     elif config_type == "simple_nm":
-        num_qubits, T1s, T2s, instruction_times, overrotation_amount, detuning_amount = extract_from_json(config, {
-                                                                                                "num_qubits": (4, {}),
-                                                                                                "T1s": (50e3, {}),
-                                                                                                "T2s": (70e3, {}),
-                                                                                                "instruction_times": (DEFAULT_INSTRUCTION_TIMES, {}),
-                                                                                        })
+        num_qubits, T1s, T2s, instruction_times, overrotation_amount, detuning_amount = \
+            extract_from_json(config, {
+                "num_qubits": (4, {}),
+                "T1s": (50e3, {}),
+                "T2s": (70e3, {}),
+                "instruction_times": (DEFAULT_INSTRUCTION_TIMES, {}),
+            })
         return custom_noise_model(num_qubits, T1s, T2s, instruction_times, overrotation_amount, detuning_amount)
 
     elif config_type == "random_simple_nm":
@@ -127,12 +134,12 @@ def custom_noise_model(num_qubits = 4, T1s = 50e3, T2s = 70e3, instruction_times
     T2s = np.array([min(T2s[j], 2 * T1s[j]) for j in range(num_qubits)])
 
     # Instruction times (in nanoseconds)
-    time_rz = instruction_times.get("time_rz")   # virtual gate
-    time_sx = instruction_times.get("time_rz")  # (single X90 pulse)
-    time_x = instruction_times.get("time_rz") # (two X90 pulses)
-    time_cx = instruction_times.get("time_rz")
-    time_reset = instruction_times.get("time_rz")  # 1 microsecond
-    time_measure = instruction_times.get("time_rz") # 1 microsecond
+    time_rz = instruction_times.get("time_rz")
+    time_sx = instruction_times.get("time_sx")
+    time_x = instruction_times.get("time_x")
+    time_cx = instruction_times.get("time_cx")
+    time_reset = instruction_times.get("time_reset")
+    time_measure = instruction_times.get("time_measure")
 
     if time_rz is None or time_sx is None or time_x is None or time_cx is None or time_reset is None or time_measure is None:
         raise ValueError("instruction times did not include all of the necessary fields to create a noise model!")
