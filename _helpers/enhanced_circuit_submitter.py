@@ -13,24 +13,21 @@ from pprint import pprint
 from copy import deepcopy
 from _helpers.nm_helper import craft_noise_model
 
-power_configs = None
-noise_models = None
-device_tracking = None
-def load_config_file(config_path):
-    try:
-        with open(config_path, 'r') as f:
-            configs = json.load(f)
-    except FileNotFoundError:
-        raise FileNotFoundError("Power config file not found")
-    except json.JSONDecodeError as e:
-        raise ValueError(f"Invalid JSON in power config file: {e}")
+CONFIG_PATH = "configs.json"
+try:
+    with open(CONFIG_PATH, 'r') as f:
+        configs = json.load(f)
+except FileNotFoundError:
+    raise FileNotFoundError("Power config file not found")
+except json.JSONDecodeError as e:
+    raise ValueError(f"Invalid JSON in power config file: {e}")
 
-    power_configs = configs.get("power_configs")
-    noise_models = configs.get("noise_models")
-    device_tracking = configs.get("device_tracking")
+power_configs = configs.get("power_configs")
+noise_models = configs.get("noise_models")
+device_tracking = configs.get("device_tracking")
 
-    if power_configs is None or noise_models is None or device_tracking is None:
-        raise ValueError("Invalid config file! Must include power_configs, noise_models and device_tracking config options!")
+if power_configs is None or noise_models is None or device_tracking is None:
+    raise ValueError("Invalid config file! Must include power_configs, noise_models and device_tracking config options!")
 
 class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
     def __init__(self, benchmark_name: str, device_name: str = "noisy_sim"):
@@ -197,6 +194,4 @@ class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
 
         return consumption
 
-CONFIG_PATH = "configs.json"
-load_config_file(CONFIG_PATH)
 _helpers.circuit_submitter.CircuitSubmitter = CircuitSubmitter

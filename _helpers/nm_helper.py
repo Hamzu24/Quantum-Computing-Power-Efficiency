@@ -1,4 +1,7 @@
 import numpy as np
+import os
+import requests
+import json
 from qiskit_ibm_runtime.fake_provider import (
     FakeAuckland, FakeGeneva, FakeKolkataV2, FakeManilaV2,
     FakeMontrealV2, FakeOslo, FakePerth, FakePrague,
@@ -78,9 +81,31 @@ def craft_noise_model(config: dict):
     config_type = config.get("type")
     if config_type is None:
         return None
+
     elif config_type == "fake_backend":
+        backend_name = config["name"]
+        download_config(backend_name, True)
+
+        first_match = next((item for item in EXISTING_MODELS if backend_name in item.lower()), None)
+        if first_match is None:
+            raise ValueError("The specified fake backend cannot be found in the supported models!")
         
-        return EXISTING_MODELS[config["name"]]()
+        backend_class = EXISTING_MODELS[first_match]
+
+        conf_path_base = f"qiskit_backend_configs/{backend_name}/"
+        backend_class.conf_filename = conf_path_base + f"conf_{backend_name}.json"
+        backend_class.props_filename = conf_path_base + f"props_{backend_name}.json"
+        backend_class.defs_filename = conf_path_base + f"defs_{backend_name}.json"
+
+        def patched_load_json(self, filename):
+            with open(filename) as f_json:
+                the_json = json.load(f_json)
+            return the_json
+
+        backend_class._load_json = patched_load_json
+
+        return EXISTING_MODELS[first_match]()
+
     elif config_type == "simple_nm":
         num_qubits, T1s, T2s, instruction_times, overrotation_amount, detuning_amount = extract_from_json(config, {
                                                                                                 "num_qubits": (4, {}),
@@ -89,6 +114,7 @@ def craft_noise_model(config: dict):
                                                                                                 "instruction_times": (DEFAULT_INSTRUCTION_TIMES, {}),
                                                                                         })
         return custom_noise_model(num_qubits, T1s, T2s, instruction_times, overrotation_amount, detuning_amount)
+
     elif config_type == "random_simple_nm":
         num_qubits, seed = extract_from_json(config, {"num_qubits": (4, {}), "seed": (0, {"random": None})})
         return random_noise_model(num_qubits, seed)
@@ -239,3 +265,39 @@ def random_noise_model(num_qubits = 4, seed = 0):
             noise_model.add_quantum_error(zz_2q_error, ["cx"], [j, k], warnings=False)
 
     return noise_model
+
+# GPT function
+def get_commit_sha_for_branch(owner, repo, branch):
+    """Get the commit SHA for a branch with slashes in the name."""
+    encoded_branch = branch.replace('/', '%2F')
+    url = f"https://api.github.com/repos/{owner}/{repo}/git/refs/heads/{encoded_branch}"
+    response = requests.get(url)
+    if response.status_code == 200:
+        return response.json()['object']['sha']
+    else:
+        raise Exception(f"Branch not found: {response.status_code}")
+
+def download_config(backend_name, silent):
+
+    # Get files from GitHub API
+    latest_commit_sha = get_commit_sha_for_branch("Qiskit", "qiskit", "stable/0.46")
+    url = f"https://api.github.com/repos/Qiskit/qiskit/contents/qiskit/providers/fake_provider/backends/{backend_name}?ref={latest_commit_sha}"
+    response = requests.get(url)
+    files = response.json()
+
+    save_location = f"qiskit_backend_configs/{backend_name}"
+    
+    # Create output folder
+    os.makedirs(save_location, exist_ok=True)
+    
+    # Download files containing keywords
+    keywords = ['conf', 'defs', 'props']
+    for file_info in files:
+        filename = file_info['name']
+        if any(keyword in filename.lower() for keyword in keywords):
+            # Download file
+            file_response = requests.get(file_info['download_url'])
+            with open(save_location + f"/{filename}", 'wb') as f:
+                f.write(file_response.content)
+            if not silent:
+                print(f"Downloaded: {filename}")
