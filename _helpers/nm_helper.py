@@ -2,6 +2,9 @@ import numpy as np
 import os
 import requests
 import json
+from pathlib import *
+import inspect
+import copy
 from qiskit_ibm_runtime.fake_provider import (
     FakeAuckland, FakeGeneva, FakeKolkataV2, FakeManilaV2,
     FakeMontrealV2, FakeOslo, FakePerth, FakePrague,
@@ -18,6 +21,10 @@ from qiskit_aer.noise import (
     thermal_relaxation_error,
     coherent_unitary_error
 )
+from qiskit.providers.models import (
+    BackendProperties,
+)
+
 
 EXISTING_MODELS = {
     "fakeAuckland": FakeAuckland,
@@ -76,21 +83,6 @@ def extract_from_json(json_dict, values: dict[str, tuple[Any, dict[Any, Any]]], 
 
     return return_values
 
-def get_dynamic_backend(backend_name, parent_class):
-
-    class DynamicFakeBackend(parent_class):
-        conf_path_base = f"qiskit_backend_configs/{backend_name}/"
-        conf_filename = conf_path_base + f"conf_{backend_name}.json"
-        props_filename = conf_path_base + f"props_{backend_name}.json"
-        defs_filename = conf_path_base + f"defs_{backend_name}.json"
-
-        def _load_json(self, filename):
-            with open(filename) as f_json:
-                the_json = json.load(f_json)
-            return the_json
-    
-    return DynamicFakeBackend
-
 # Main function
 def craft_noise_model(config: dict):
     config_type = config.get("type")
@@ -107,7 +99,19 @@ def craft_noise_model(config: dict):
 
         matching_class = EXISTING_MODELS[match]
 
-        backend = get_dynamic_backend(backend_name, matching_class)()
+        target_dir = Path(inspect.getsourcefile(matching_class)).parent
+        source_dir = Path(f"./qiskit_backend_configs/{backend_name}/")
+
+        # CREATING SYMLINKS TO CONFIG FILES!
+        for item in source_dir.iterdir():
+            symlink_path = target_dir / item.name
+            
+            if symlink_path.exists():
+                continue
+            
+            symlink_path.symlink_to(item.absolute())
+
+        backend = matching_class()
         noise_model = NoiseModel.from_backend(backend)
         noise_model.name = config["name"]
         return noise_model
@@ -286,19 +290,34 @@ def get_commit_sha_for_branch(owner, repo, branch):
 
 def download_config(backend_name, silent):
 
+    save_location = f"qiskit_backend_configs/{backend_name}"
+    dir_path = Path(save_location)
+    keywords = ['conf', 'defs', 'props']
+
+    if dir_path.exists():
+        for item in dir_path.iterdir():
+            needed_keywords = copy.copy(keywords)
+            if item.is_file():
+                for keyword in needed_keywords:
+                    if keyword in item.name.lower():
+                        needed_keywords.remove(keyword)
+                        continue
+                
+                if not needed_keywords:
+                    return
+
+
     # Get files from GitHub API
     latest_commit_sha = get_commit_sha_for_branch("Qiskit", "qiskit", "stable/0.46")
     url = f"https://api.github.com/repos/Qiskit/qiskit/contents/qiskit/providers/fake_provider/backends/{backend_name}?ref={latest_commit_sha}"
     response = requests.get(url)
     files = response.json()
 
-    save_location = f"qiskit_backend_configs/{backend_name}"
     
     # Create output folder
     os.makedirs(save_location, exist_ok=True)
     
     # Download files containing keywords
-    keywords = ['conf', 'defs', 'props']
     for file_info in files:
         filename = file_info['name']
         if any(keyword in filename.lower() for keyword in keywords):
@@ -308,3 +327,27 @@ def download_config(backend_name, silent):
                 f.write(file_response.content)
             if not silent:
                 print(f"Downloaded: {filename}")
+
+def get_fake_backend(backend_name):
+    download_config(backend_name, True)
+
+    match = next((item for item in EXISTING_MODELS if backend_name in item.lower()), None)
+    if match is None:
+        raise ValueError("The specified fake backend cannot be found in the supported models!")
+
+    matching_class = EXISTING_MODELS[match]
+
+    target_dir = Path(inspect.getsourcefile(matching_class)).parent
+    source_dir = Path(f"./qiskit_backend_configs/{backend_name}/")
+
+    # CREATING SYMLINKS TO CONFIG FILES!
+    for item in source_dir.iterdir():
+        symlink_path = target_dir / item.name
+        
+        if symlink_path.exists():
+            continue
+        
+        symlink_path.symlink_to(item.absolute())
+
+    backend = matching_class()
+    return backend
