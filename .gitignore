@@ -167,6 +167,7 @@ cython_debug/
 
 # HERE ONWARDS IS WHAT I ADDED
 
-qiskit_backend_configs/
+qiskit_backend_configs/*
+!qiskit_backend_configs/hardware_constants.json
 hardware_runs/
 test_dir/
