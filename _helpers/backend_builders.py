@@ -8,11 +8,41 @@ import argparse
 import pprint
 
 HARDWARE_CONFIG_PATH = Path("qiskit_backend_configs/hardware_constants.json")
+
 hardware_config_groups = {
     "modern": ("perth", "default"),
     "intermediate": (),
     "legacy": ("oslo")
 }
+
+SI_PREFIXES = {
+    'P': 1e15,   # peta
+    'T': 1e12,   # tera
+    'G': 1e9,    # giga
+    'M': 1e6,    # mega
+    'k': 1e3,    # kilo
+    '': 1,       # base unit
+    'm': 1e-3,   # milli
+    'μ': 1e-6,   # micro (Greek mu)
+    'u': 1e-6,   # micro (alternative 'u' for systems that don't support μ)
+    'n': 1e-9,   # nano
+}
+
+PROPERTY_UNITS = {
+    "T1": "us",
+    "T2": "us", 
+    "frequency": "GHz",
+    "anharmonicity": "GHz",
+    "readout_error": "",
+    "prob_meas0_prep1": "",
+    "prob_meas1_prep0": "",
+    "readout_length": "ns"
+}
+
+def retrieve_value_with_units(config: dict, name: str):
+    val, units = config.get(name)
+    multiplier = SI_PREFIXES.get(units[0])
+    return val * multiplier
 
 def update_nested_json(filename, path, value, create_path=True):
     """Update nested JSON values using dot notation"""
@@ -32,7 +62,7 @@ def update_nested_json(filename, path, value, create_path=True):
             if create_path:
                 current[key] = {}
             else:
-                raise ValueError("Specified path does not exist!")
+                raise ValueError("Error: specified path does not exist, and the create_path flag is set to False")
         current = current[key]
     
     # Set the value
@@ -41,7 +71,7 @@ def update_nested_json(filename, path, value, create_path=True):
     with open(filename, 'w') as file:
         json.dump(data, file, indent=4)
 
-def get_qubit_paths(filename: str, prop: str, all_qubits=True):
+def get_qubit_paths(filename: str, prop: str, target_str: str, all_qubits=True):
     with open(filename, 'r') as file:
         data = json.load(file)
     q_list = data.get("qubits")
@@ -60,7 +90,7 @@ def get_qubit_paths(filename: str, prop: str, all_qubits=True):
 
             cur_prop = qb_prop.get("name")
             if cur_prop == prop:
-                paths.append(cur_path + "value")
+                paths.append(cur_path + target_str)
                 found = True
                 break
 
@@ -109,20 +139,33 @@ class builder_wrapper:
                 group = group_name 
         
         if group is None:
-            raise ValueError("Neither the name nor default was found in a group!")
+            raise ValueError("Neither the name nor default was found in a group! Please check the hardware_config_groups variable in the _helpers/backend_builders file.")
             
         self.config = configs.get(group)
         if self.config is None:
-            raise ValueError("A group without a corresponding configuration was found!")
+            raise ValueError(f"Error: the group {group} does not have a corresponding configuration in the {str(HARDWARE_CONFIG_PATH)} file.")
     
     def build_backend(self, control_parameters):
-        backend_config = self.builder.calculate_config(control_parameters)
+        backend_config = self.builder.calculate_config(control_parameters, True)
 
         output_config_path = f"qiskit_backend_configs/{backend_name}/props_{backend_name}.json"
         for property, value in backend_config.items():
-            paths = get_qubit_paths(output_config_path, property)
+
+            property_unit = PROPERTY_UNITS.get(property)
+            if property_unit is None or property_unit == "":
+                # Leave units unchanged in this case
+                return
+            
+            unit_paths = get_qubit_paths(output_config_path, property, "unit")
+            for unit_path in unit_paths:
+                update_nested_json(output_config_path, property, property_unit)
+
+            unit_multiplier = SI_PREFIXES.get(property_unit[0])
+            scaled_value = value / unit_multiplier
+            paths = get_qubit_paths(output_config_path, property, "value")
             for path in paths:
-                update_nested_json(output_config_path, path, value)
+                update_nested_json(output_config_path, path, scaled_value)
+
 
 class default_builder:
     def __init__(self, name: str, config: dict):
@@ -139,7 +182,7 @@ class default_builder:
         
         for param in required_params:
             if self.config.get(param) is None:
-                raise ValueError(f"Missing '{param}' configuration for the group with the backend {self.name}")
+                raise ValueError(f"Missing the required param: '{param}' in the hardware constants group that contains the backend {self.name}")
 
     def x_qp(self, T: float):
         """Equilibrium quasiparticle density"""
@@ -255,13 +298,14 @@ class default_builder:
         self.calculated_values["T2"] = T2
         return T2
 
-    def calculate_config(self, control_parameters: dict):
-        T = control_parameters.get("temperature")
+    def calculate_config(self, control_parameters: dict, debug=False):
+        T = retrieve_value_with_units(control_parameters, "temperature")
         T1 = self.calculated_values.get("T1") if self.calculated_values.get("T1") else self.T1(T)
         T2 = self.calculated_values.get("T2") if self.calculated_values.get("T2") else self.T2(T)
         print(f"At temperature {T}\nT1: {T1}, T2: {T2}")
-        print(f"debug output:\n")
-        pprint.pprint(self.calculated_values)
+        if debug:
+            print(f"debug output:\n")
+            pprint.pprint(self.calculated_values)
 
         return {"T1": T1, "T2": T2}
         
@@ -279,6 +323,6 @@ if __name__ == "__main__":
     #backend_config = {"T1": 100, "T2": 150}
     #output_config_path = f"qiskit_backend_configs/{backend_name}/props_{backend_name}.json"
     #for property, value in backend_config.items():
-    #    paths = get_qubit_paths(output_config_path, property)
+    #    paths = get_qubit_paths(output_config_path, property, "value")
     #    for path in paths:
     #        update_nested_json(output_config_path, path, value)

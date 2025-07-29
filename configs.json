@@ -16,7 +16,7 @@
             "type": "fake_backend",
             "name": "perth",
             "control_parameters": {
-                "temperature": 0.015
+                "temperature": [15, "mK"]
             }
         }
     }

@@ -164,7 +164,7 @@ def custom_noise_model(num_qubits = 4, T1s = 50e3, T2s = 70e3, instruction_times
     time_measure = instruction_times.get("time_measure")
 
     if time_rz is None or time_sx is None or time_x is None or time_cx is None or time_reset is None or time_measure is None:
-        raise ValueError("instruction times did not include all of the necessary fields to create a noise model!")
+        raise ValueError("The instruction times extracted from the configuration did not include all the necessary fields to create a custom noise model!")
 
     # QuantumError objects
     errors_reset = [thermal_relaxation_error(t1, t2, time_reset)
