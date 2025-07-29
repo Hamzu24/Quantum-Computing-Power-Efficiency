@@ -1,32 +1,34 @@
 {
     "modern": {
-        "y_0": 1.4e-4,
-        "ymxc_y0": 0.72,
-        "T_env": 110,
-        "gamma_psi_base": 8.5e3,
-        "N_e": 2.5,
-        "delta": 2.88e-22,
+        "y0": 6e3,
+        "ymxc_y0": 0.95,
+        "T_env": 0.015,
+        "gamma_psi_base": 1.3e3,
+        "delta": 2.88e-23,
         "builder_class": "default_builder",
-        "w_ge": 5
+        "w_ge": 4.176e10,
+        "N_e": 2.5,             
+        "E_c": 1.524e-25,
+        "E_J": 9.944e-24
     },
     "intermediate": {
-        "y_0": 1.85e-4,
+        "y0": 1.85e-4,
         "ymxc_y0": 0.68,
-        "T_env": 130,
+        "T_env": 0.130,
         "gamma_psi_base": 10.5e3,
         "N_e": 2.5,
-        "delta": 2.88e-22,
+        "delta": 2.88e-23,
         "builder_class": "default_builder",
-        "w_ge": 5
+        "w_ge": 3.14e10
     },
     "legacy": {
-        "y_0": 2.7e-4,
+        "y0": 2.7e-4,
         "ymxc_y0": 0.65,
-        "T_env": 150,
+        "T_env": 0.150,
         "gamma_psi_base": 14e3,
         "N_e": 2.5,
-        "delta": 2.88e-22,
+        "delta": 2.88e-23,
         "builder_class": "default_builder",
-        "w_ge": 5
+        "w_ge": 3.14e10
     }
 }

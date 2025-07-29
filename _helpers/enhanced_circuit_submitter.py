@@ -94,7 +94,7 @@ class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
             if qasm_string_has_measurement(qasm_strs):
                 return True
         elif circuit_type == "braket_circuits":
-            raise ValueError("measurement checking not implemented for braket circuits!")
+            raise NotImplementedError("measurement checking not implemented for braket circuits!")
         
         return False
 

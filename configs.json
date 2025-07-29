@@ -14,7 +14,10 @@
     "noise_models": {
         "default_noise_model": {
             "type": "fake_backend",
-            "name": "perth"
+            "name": "perth",
+            "control_parameters": {
+                "temperature": 0.015
+            }
         }
     }
 }
