@@ -12,6 +12,7 @@ from braket.aws import AwsQuantumTask
 from pprint import pprint
 from copy import deepcopy
 from _helpers.nm_helper import craft_noise_model
+import os
 
 CONFIG_PATH = "configs.json"
 try:
@@ -30,8 +31,11 @@ if power_configs is None or noise_models is None or device_tracking is None:
     raise ValueError("Invalid config file! Must include power_configs, noise_models and device_tracking config options!")
 
 class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
+    SIMULATION_METHOD="density_matrix"
+
     def __init__(self, benchmark_name: str, device_name: str = "noisy_sim"):
         super().__init__(benchmark_name, device_name)
+        DEBUG = os.environ.get('DEBUG', 'false').lower() == 'true'
         self.total_gates = Counter()
 
         if power_configs.get(device_name) is not None:
@@ -39,24 +43,21 @@ class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
         else:
             self.power_config = power_configs.get("default_power_config")
         
+        noise_model_instance = None
         if device_name in ["noisy_sim", "noisy_sim_with_shots"]:
             if noise_models.get(device_name) is not None:
                 noise_model_specs = noise_models.get(device_name)
                 noise_model_instance = craft_noise_model(noise_model_specs)
-                self.backend.noise_model = noise_model_instance
-                self.backend.device.noise_model = noise_model_instance
-                self.backend.device.sim = self.backend.device.backend(
-                    method="density_matrix", noise_model=noise_model_instance
-                )
 
             elif noise_models.get("default_noise_model") is not None:
                 noise_model_specs = noise_models.get("default_noise_model")
                 noise_model_instance = craft_noise_model(noise_model_specs)
-                self.backend.noise_model = noise_model_instance
-                self.backend.device.noise_model = noise_model_instance
-                self.backend.device.sim = self.backend.device.backend(
-                    method="density_matrix", noise_model=noise_model_instance
-                )
+            
+            self.backend.noise_model = noise_model_instance
+            self.backend.device.noise_model = noise_model_instance
+            self.backend.device.sim = self.backend.device.backend(
+                method=CircuitSubmitter.SIMULATION_METHOD, noise_model=noise_model_instance
+            )
         
         if device_tracking.get(device_name) is not None:
             self.tracking_number = device_tracking.get(device_name)
@@ -65,10 +66,12 @@ class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
         
         self.gate_history = []
 
-        if self.device_name in ["noisy_sim", "noisy_sim_with_shots"]:
-            print(f"the backend being used is {self.backend}, noise model is {self.backend.noise_model.name}, device noise model is {self.backend.device.noise_model.name}")
-        else:
-            print(f"the backend being used is {self.backend}")
+        if DEBUG:
+            if self.device_name in ["noisy_sim", "noisy_sim_with_shots"]:
+                print(f"the backend being used is {self.backend}, noise model is {self.backend.noise_model.name}, device noise model is {self.backend.device.noise_model.name}")
+                print(f"basis gates are {noise_model_instance.basis_gates}")
+            else:
+                print(f"the backend being used is {self.backend}")
     
     def _has_a_measurement(self, circuits, circuit_type: str = "qasm_strs"):
         def qasm_string_has_measurement(qasm_string):
@@ -105,11 +108,11 @@ class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
 
         if self.tracking_number <= 0:
             return tasks
+
         self._populate_gate_counter(self.total_gates, circuits)
-
-
         if self.tracking_number <= 1:
             return tasks
+
         if qasm_strs is not None:
             has_a_measurement = self._has_a_measurement(qasm_strs, "qasm_strs")
         elif qasm_paths is not None:
@@ -183,7 +186,8 @@ class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
             for circuit in circuits:
                 self._populate_gate_counter(counter, circuit)
 
-    def _calculate_power_consumption(self, gates: Counter, silent: bool = False, error_if_incomplete: bool = True):
+    def _calculate_power_consumption(self, gates: Counter, error_if_incomplete: bool = True):
+        DEBUG = os.environ.get('DEBUG', 'false').lower() == 'true'
         consumption = Counter()
         operations_to_ignore = ["save_density_matrix", "barrier"]
         for operation, count in gates.items():

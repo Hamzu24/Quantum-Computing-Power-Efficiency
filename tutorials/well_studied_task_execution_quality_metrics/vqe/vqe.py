@@ -24,7 +24,12 @@ from qiskit.circuit.library import XXPlusYYGate
 from qiskit.quantum_info import Statevector
 from qiskit_nature.second_q.circuit.library import SlaterDeterminant
 from qiskit_nature.second_q.hamiltonians import QuadraticHamiltonian
-
+import numpy as np
+import sys
+import pathlib
+import os
+from tqdm.autonotebook import tqdm
+from _helpers.circuit_submitter import CircuitSubmitter
 
 
 class FermiHubbardVQE:
@@ -199,3 +204,66 @@ def get_energy(fhq, results, shots):
 
     energy = t0 + U
     return energy
+
+device_name = "noisy_sim"
+submitter = CircuitSubmitter("vqe-fermi-hubbard", device_name)
+
+if __name__ == "__main__":
+    def get_vqe_instance(nsites, U, num_layers_vha):
+        """_summary_
+
+        :param int nsites: Number of fermionic sites in Hamiltonian
+        :param float U: the onsite energy
+        :param int num_layers_vha: the number of layers of the ansatz to use
+        :return FermiHubbardVQE: 
+        """
+        fhq = FermiHubbardVQE(nsites=nsites, U=U, shift_number=False)
+        fhq.prepare_initial_state_qiskit()
+        for _ in range(num_layers_vha):
+            fhq.apply_vha()
+        fhq.energy_expectation_operators()
+        return fhq
+
+
+    # Parameters
+    nsites = 3  # num_qubits = 2*nsites
+    num_layers_vha = 1
+    U=2
+    shots=1000
+    num_trials = 10
+
+    # Seed to ensure repeatability
+    starting_seed = 5
+    np.random.seed(starting_seed)
+
+    vqe_experiments = []
+    energy_differences = []
+    for _ in range(num_trials):
+        fhq = get_vqe_instance(nsites, U, num_layers_vha)
+        x0 = np.random.random(fhq.params._size)
+        vqe_experiments.append((fhq, x0))
+
+    for experiment, params  in tqdm(vqe_experiments):
+        circ_list = []
+        results= {}
+        for key, circ in experiment.qc_list.items():
+           circ_list.append(circ.assign_parameters(params).decompose(reps=2))
+        tasks = submitter.submit_circuits(shots=shots, skip_asking=True, qasm_strs=[qc.qasm() for qc in circ_list], print_summary = False)
+        counts = submitter.retrieve_counts([task.id for task in tasks], wait=True, print_timestamp_when_done = False)
+        qiskit_counts = [submitter.convert_counts_to_qiskit(c) for c in counts]
+        for (key, _ ) , counts in zip(experiment.qc_list.items(), qiskit_counts):
+            results[key] = counts
+        energy = get_energy(experiment, results, shots)
+
+        state_vec_energy = experiment.get_energy(experiment.qc.assign_parameters(params))
+        energy_differences.append(np.abs(state_vec_energy-energy))
+        
+
+
+    #average_energy_diff_per_site = np.mean(energy_differences) / (nsites*num_trials)
+    # Is the correct formula actually the correct one?
+    average_energy_diff_per_site = np.mean(energy_differences) / nsites
+
+    os.environ['PERF_VALUE'] = str(average_energy_diff_per_site)
+
+    #print('\n\n\n\nAverage energy difference per-site = ', average_energy_diff_per_site)

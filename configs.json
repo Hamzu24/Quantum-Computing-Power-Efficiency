@@ -7,7 +7,8 @@
         "default_power_config": {
             "cx": 2,
             "rz": 3,
-            "sx": 1
+            "sx": 1,
+            "x": 1
         }
             
     },
@@ -16,7 +17,7 @@
             "type": "fake_backend",
             "name": "perth",
             "control_parameters": {
-                "temperature": [15, "mK"]
+                "temperature": [13, "mK"]
             }
         }
     }

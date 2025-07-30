@@ -402,7 +402,7 @@ if __name__ == "__main__":
     filepath = submitter.benchmark_path
 
     #OLD: num_qubits_list = [2, 3, 4, 5, 6, 7,]
-    num_qubits_list = [2, 3] # NEW!
+    num_qubits_list = [5] # NEW!
     num_trials = 200
     optimization_level = 1
 
@@ -440,8 +440,9 @@ if __name__ == "__main__":
                 )
         noisy_heavy_outputs_dict[n_qubits] = noisy_heavy_outputs
         mean_noisy_heavy_outputs.append(np.mean(noisy_heavy_outputs))
-        
 
+        os.environ['PERF_VALUE'] = str(mean_noisy_heavy_outputs)
+        
         plot_heavy_output_distribution(
             np.asarray(
                 [
@@ -468,6 +469,7 @@ if __name__ == "__main__":
             num_trials,
             save=True,
             path=filepath,
+            show_plot=True,
         )
     plot_average_heavy_output(
         mean_ideal_heavy_outputs,

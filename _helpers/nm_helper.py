@@ -105,7 +105,7 @@ def craft_noise_model(config: dict):
             return True
                 
         exists = config_exists()
-        download_config(backend_name, silent=True, exit_if_unavailable=exists)
+        download_config(backend_name, exit_if_unavailable=exists)
 
         match = next((item for item in EXISTING_MODELS if backend_name in item.lower()), None)
         if match is None:
@@ -306,7 +306,8 @@ def get_commit_sha_for_branch(owner, repo, branch):
     else:
         raise Exception(f"Branch not found: {response.status_code}")
 
-def download_config(backend_name, silent, exit_if_unavailable=True):
+def download_config(backend_name, exit_if_unavailable=True):
+    DEBUG = os.environ.get('DEBUG', 'false').lower() == 'true'
     save_location = f"qiskit_backend_configs/{backend_name}"
     dir_path = Path(save_location)
     keywords = ['conf', 'defs', 'props']
@@ -331,7 +332,7 @@ def download_config(backend_name, silent, exit_if_unavailable=True):
     props_filename = None
 
     if response.status_code != 200:
-        if not silent:
+        if DEBUG:
             print(f"Unable to find files for the backend {backend_name} from the url {url}.")
         if exit_if_unavailable:
             raise requests.exceptions.HTTPError(
@@ -352,7 +353,7 @@ def download_config(backend_name, silent, exit_if_unavailable=True):
                 file_response = requests.get(file_info['download_url'])
                 with open(save_location + f"/{filename}", 'wb') as f:
                     f.write(file_response.content)
-                if not silent:
+                if DEBUG:
                     print(f"Downloaded: {filename}")
 
                 if "props" in filename:
@@ -362,16 +363,16 @@ def download_config(backend_name, silent, exit_if_unavailable=True):
 
     if props_filename:
         try:
-            original_props_filename = props_filename.split(".")[0] + "_original.json"
-            subprocess.run(["cp", save_location + props_filename, original_props_filename])
+            original_props_filename = save_location + "/" + props_filename.split(".")[0] + "_original.json"
+            subprocess.run(["cp", save_location + "/" + props_filename, original_props_filename])
         except subprocess.CalledProcessError as e:
-            raise ValueError(f"A subprocess exited with an error: {e}")
+            raise RuntimeError(f"A subprocess exited with an error: {e}")
     else:
         raise FileNotFoundError("The props file which is necessary to configuration of fake backends was not found from the qiskit repository")
         
 
 def get_fake_backend(backend_name):
-    download_config(backend_name, True)
+    download_config(backend_name)
 
     match = next((item for item in EXISTING_MODELS if backend_name in item.lower()), None)
     if match is None:

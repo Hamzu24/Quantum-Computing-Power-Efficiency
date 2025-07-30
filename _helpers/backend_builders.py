@@ -6,6 +6,7 @@ from scipy.constants import pi, k, hbar
 from scipy.special import k0
 import argparse
 import pprint
+import os
 
 HARDWARE_CONFIG_PATH = Path("qiskit_backend_configs/hardware_constants.json")
 
@@ -146,7 +147,7 @@ class builder_wrapper:
             raise ValueError(f"Error: the group {group} does not have a corresponding configuration in the {str(HARDWARE_CONFIG_PATH)} file.")
     
     def build_backend(self, control_parameters):
-        backend_config = self.builder.calculate_config(control_parameters, True)
+        backend_config = self.builder.calculate_config(control_parameters)
 
         output_config_path = f"qiskit_backend_configs/{backend_name}/props_{backend_name}.json"
         for property, value in backend_config.items():
@@ -298,12 +299,13 @@ class default_builder:
         self.calculated_values["T2"] = T2
         return T2
 
-    def calculate_config(self, control_parameters: dict, debug=False):
+    def calculate_config(self, control_parameters: dict):
+        DEBUG = os.environ.get('DEBUG', 'false').lower() == 'true'
         T = retrieve_value_with_units(control_parameters, "temperature")
         T1 = self.calculated_values.get("T1") if self.calculated_values.get("T1") else self.T1(T)
         T2 = self.calculated_values.get("T2") if self.calculated_values.get("T2") else self.T2(T)
-        print(f"At temperature {T}\nT1: {T1}, T2: {T2}")
-        if debug:
+        if DEBUG:
+            print(f"At temperature {T}\nT1: {T1}, T2: {T2}")
             print(f"debug output:\n")
             pprint.pprint(self.calculated_values)
 
