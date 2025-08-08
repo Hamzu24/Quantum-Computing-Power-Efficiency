@@ -1,4 +1,4 @@
-from typing import Protocol
+from typing import Protocol, Any
 from pathlib import *
 import json
 from math import sqrt, exp, cosh
@@ -7,6 +7,14 @@ from scipy.special import k0
 import argparse
 import pprint
 import os
+from _helpers.json_manager import json_manager, get_unit_multiplier, SI_PREFIXES, PROPERTY_UNITS
+import logging
+import time
+
+Papers = ["""Lvov, D. S., Lemziakov, S. A., Ankerhold, E., Peltonen, J. T., & Pekola, J. P. (2025).
+          Thermometry based on a superconducting qubit. Physical Review Applied, 23(5). https://doi.org/10.1103/physrevapplied.23.054079""",
+          """Simbierowicz, S., Borrelli, M., Monarkha, V., Nuutinen, V., & Lake, R. E. (2024).
+          Inherent Thermal-Noise problem in addressing Qubits. PRX Quantum, 5(3). https://doi.org/10.1103/prxquantum.5.030302"""]
 
 HARDWARE_CONFIG_PATH = Path("qiskit_backend_configs/hardware_constants.json")
 
@@ -16,104 +24,27 @@ hardware_config_groups = {
     "legacy": ("oslo")
 }
 
-SI_PREFIXES = {
-    'P': 1e15,   # peta
-    'T': 1e12,   # tera
-    'G': 1e9,    # giga
-    'M': 1e6,    # mega
-    'k': 1e3,    # kilo
-    '': 1,       # base unit
-    'm': 1e-3,   # milli
-    'μ': 1e-6,   # micro (Greek mu)
-    'u': 1e-6,   # micro (alternative 'u' for systems that don't support μ)
-    'n': 1e-9,   # nano
-}
+def get_unit_multiplier(unit: str):
+    assert (len(unit) != 0)
+    return SI_PREFIXES.get(unit[0])
 
-PROPERTY_UNITS = {
-    "T1": "us",
-    "T2": "us", 
-    "frequency": "GHz",
-    "anharmonicity": "GHz",
-    "readout_error": "",
-    "prob_meas0_prep1": "",
-    "prob_meas1_prep0": "",
-    "readout_length": "ns"
-}
-
-def retrieve_value_with_units(config: dict, name: str):
-    val, units = config.get(name)
-    multiplier = SI_PREFIXES.get(units[0])
+def get_config_value(config: dict, name: str):
+    val, unit = config.get(name)
+    multiplier = get_unit_multiplier(unit)
     return val * multiplier
 
-def update_nested_json(filename, path, value, create_path=True):
-    """Update nested JSON values using dot notation"""
-    with open(filename, 'r') as file:
-        data = json.load(file)
-    
-    # Navigate to nested location
-    keys = path.split('.')
-    current = data
-    for key in keys[:-1]:
-        if isinstance(current, list):
-            idx = int(key[1:-1])
-            current = current[idx]
-            continue
-                
-        if key not in current:
-            if create_path:
-                current[key] = {}
-            else:
-                raise ValueError("Error: specified path does not exist, and the create_path flag is set to False")
-        current = current[key]
-    
-    # Set the value
-    current[keys[-1]] = value
-    
-    with open(filename, 'w') as file:
-        json.dump(data, file, indent=4)
-
-def get_qubit_paths(filename: str, prop: str, target_str: str, all_qubits=True):
-    with open(filename, 'r') as file:
-        data = json.load(file)
-    q_list = data.get("qubits")
-    if not q_list:
-        raise ValueError("configuration file does not match expected structure: qubits list not found")
-
-    paths = []
-    cur_path = "qubits."
-
-    for i, qb in enumerate(q_list):
-        cur_path = cur_path + f"[{i}]."
-        found = False
-
-        for j, qb_prop in enumerate(qb):
-            cur_path = cur_path + f"[{j}]."
-
-            cur_prop = qb_prop.get("name")
-            if cur_prop == prop:
-                paths.append(cur_path + target_str)
-                found = True
-                break
-
-            cur_path = ".".join(cur_path.split(".")[:-2]) + "."
-
-        if not found and all_qubits:
-            raise ValueError(f"configuration file does not match expected structure: one qubit didn't have the property {prop}")
-        found = False
-        cur_path = ".".join(cur_path.split(".")[:-3]) + "."
-
-    return paths
-
-
 class builder(Protocol):
-    def T1(self, T: float) -> float:
+    def T1(self, *args: Any, **kwargs: Any) -> float:
         "calculate T1 relaxation time from the hardware constants and temperature passed in"
 
-    def T2(self, T: float) -> float:
+    def T2(self, *args: Any, **kwargs: Any) -> float:
         "calculate T2 dephasing time from the hardware constants and temperature passed in"
 
-    def calculate_config(self, control_parameters: dict):
+    def calculate_qb_config(self, control_parameters: dict, qb_path: str, jm: json_manager):
         "build the backend configuration from the hardware constants and temperature passed in"
+
+    def calculate_gate_config(self, control_parameters: dict, qb_path: str, jm: json_manager):
+        "Build a gate configuration from the control parameters and a specific gate dictionary"
     
 
 class builder_wrapper:
@@ -123,6 +54,8 @@ class builder_wrapper:
         
         builder_name = self.config["builder_class"]
         self.builder = globals()[builder_name](self.name, self.config)
+        filename = f"qiskit_backend_configs/{name}/props_{name}.json"
+        self.json_manager = json_manager(filename)
     
     def load_hardware_params(self, path: str):
         with open(path, "r") as f:
@@ -147,38 +80,40 @@ class builder_wrapper:
             raise ValueError(f"Error: the group {group} does not have a corresponding configuration in the {str(HARDWARE_CONFIG_PATH)} file.")
     
     def build_backend(self, control_parameters):
-        backend_config = self.builder.calculate_config(control_parameters)
+        self._build_qubits(control_parameters)
+        self._build_gates(control_parameters)
+        self.json_manager.write()
 
-        output_config_path = f"qiskit_backend_configs/{backend_name}/props_{backend_name}.json"
-        for property, value in backend_config.items():
+    def _build_qubits(self, control_parameters):
+        qubit_paths = self.json_manager.get_qubit_paths()
 
-            property_unit = PROPERTY_UNITS.get(property)
-            if property_unit is None or property_unit == "":
-                # Leave units unchanged in this case
-                return
-            
-            unit_paths = get_qubit_paths(output_config_path, property, "unit")
-            for unit_path in unit_paths:
-                update_nested_json(output_config_path, property, property_unit)
+        for qb_path in qubit_paths:
+            qb_config = self.builder.calculate_qb_config(control_parameters, qb_path, self.json_manager)
+            for prop, val in qb_config.items():
+                self.json_manager.update_with_units(prop, val, qb_path)
+    
+    def _build_gates(self, control_parameters):
+        gate_paths = self.json_manager.get_gate_paths()
 
-            unit_multiplier = SI_PREFIXES.get(property_unit[0])
-            scaled_value = value / unit_multiplier
-            paths = get_qubit_paths(output_config_path, property, "value")
-            for path in paths:
-                update_nested_json(output_config_path, path, scaled_value)
-
+        for gate_path in gate_paths:
+            gate_config = self.builder.calculate_gate_config(control_parameters, gate_path, self.json_manager)
+            gate_param_path = gate_path + "parameters."
+            for prop, val in gate_config.items():
+                if val is not None:
+                    self.json_manager.update_with_units(prop, val, gate_param_path)
 
 class default_builder:
-    def __init__(self, name: str, config: dict):
+    def __init__(self, name: str, config: dict, init_T=0.013):
         self.name = name
         self.config = config
+        self.init_T=init_T
         self.calculated_values = {}
         self.is_valid()
 
     def is_valid(self):
         required_params = [
             "y0", "ymxc_y0", "T_env", "gamma_psi_base", 
-            "N_e", "delta", "w_ge", "E_c", "E_J"
+            "N_e", "delta", "E_c", "E_J"
         ]
         
         for param in required_params:
@@ -190,7 +125,8 @@ class default_builder:
 
         delta = self.config.get("delta")
         x_qp = sqrt(2*pi*k*T/delta) * exp(-delta/(k*T))
-        self.calculated_values["x_qp"] = x_qp
+        logging.info(f"Calculated value of x_qp at ({T}): {x_qp}")
+
         return x_qp
     
     def w_p(self, T: float):
@@ -210,7 +146,8 @@ class default_builder:
         else:
             w_p = w_p0 * sqrt(screening_factor)
 
-        self.calculated_values["w_p"] = w_p
+        logging.info(f"Calculated value of w_p at ({T}): {w_p}")
+
         return w_p
 
     def bose_einstein(self, w: float, T: float):
@@ -220,9 +157,9 @@ class default_builder:
             return 0.0
         return 1.0 / (exp(x) - 1.0)
     
-    def n_eff(self, T: float):
-        """Effective photon number from two-bath model (Eq. 14)"""
-        w_ge = self.config.get("w_ge")
+    def n_eff(self, T: float, frequency: float):
+        """Effective photon number from two-bath model (Paper 1, Eq. 14)"""
+        w_ge = frequency
         gamma_MXC_ratio = self.config.get("ymxc_y0")  # γ_MXC/γ_0
         T_env = self.config.get("T_env")
         
@@ -230,17 +167,17 @@ class default_builder:
         n_env = self.bose_einstein(w_ge, T_env)
         
         n_eff = gamma_MXC_ratio * n_MXC + (1 - gamma_MXC_ratio) * n_env
-        
-        self.calculated_values["n_eff"] = n_eff
+        logging.info(f"Calculated value of n_eff at ({T}, {frequency}): {n_eff}")
+
         return n_eff
     
-    def gamma_qp(self, T: float):
-        """Quasiparticle-induced relaxation rate (Eq. 26)"""
+    def gamma_qp(self, T: float, frequency: float):
+        """Quasiparticle-induced relaxation rate (Paper 1, Eq. 26)"""
         delta = self.config.get("delta")
-        w_ge = self.config.get("w_ge")
+        w_ge = frequency
         
-        x_qp = self.calculated_values.get("x_qp") if self.calculated_values.get("x_qp") else self.x_qp(T)
-        w_p = self.calculated_values.get("w_p") if self.calculated_values.get("w_p") else self.w_p(T)
+        x_qp = self.x_qp(T)
+        w_p = self.w_p(T)
 
         # First term: x_qp * sqrt(2Δ/ℏω_ge)
         term1 = x_qp * sqrt(2*delta/(hbar*w_ge))
@@ -253,26 +190,26 @@ class default_builder:
             term2 = 4*exp(-delta/(k*T)) * cosh(arg) * k0(arg)
         
         gamma_qp = (w_p**2)/(pi*w_ge) * (term1 + term2)
+        logging.info(f"Calculated value of gamma_qp at ({T}, {frequency}): {gamma_qp}")
         
-        self.calculated_values["gamma_qp"] = gamma_qp
         return gamma_qp
     
-    def T1(self, T: float) -> float:
-        """Energy relaxation time (Eq. 27)"""
-        gamma_qp = self.calculated_values.get("gamma_qp") if self.calculated_values.get("gamma_qp") else self.gamma_qp(T)
-        n_eff = self.calculated_values.get("n_eff") if self.calculated_values.get("n_eff") else self.n_eff(T)
+    def T1(self, T: float, frequency: float) -> float:
+        """Energy relaxation time (Paper 1, Eq. 27)"""
+        gamma_qp = self.gamma_qp(T, frequency)
+        n_eff = self.n_eff(T, frequency)
         y0 = self.config.get("y0")
         
         # T1 = 1/[γ_qp(T) + γ_0(2n_eff + 1)]
         T1 = 1/(gamma_qp + y0*(2*n_eff + 1))
+        logging.info(f"Calculated value of T1 at ({T}, {frequency}): {T1}")
         
-        self.calculated_values["T1"] = T1
         return T1
     
-    def gamma_psi_qp(self, T: float):
-        """Quasiparticle-induced dephasing rate (Eq. 29)"""
-        w_p = self.calculated_values.get("w_p") if self.calculated_values.get("w_p") else self.w_p(T)
-        w_ge = self.config.get("w_ge")
+    def gamma_psi_qp(self, T: float, frequency: float):
+        """Quasiparticle-induced dephasing rate (Paper 1, Eq. 29)"""
+        w_p = self.w_p(T)
+        w_ge = frequency
         delta = self.config.get("delta")
         N_e = self.config.get("N_e")
         
@@ -283,34 +220,118 @@ class default_builder:
             x_A_qp = exp(-delta/(k*T))
         
         gamma_psi_qp = 4*pi*(w_p**2/w_ge) * sqrt(x_A_qp/N_e)
+        logging.info(f"Calculated value of gamma_psi_qp at ({T}, {frequency}): {gamma_psi_qp}")
         
-        self.calculated_values["gamma_psi_qp"] = gamma_psi_qp
         return gamma_psi_qp
     
-    def T2(self, T: float) -> float:
-        """Dephasing time"""
-        T1 = self.calculated_values.get("T1") if self.calculated_values.get("T1") else self.T1(T)
-        gamma_psi_qp = self.calculated_values.get("gamma_psi_qp") if self.calculated_values.get("gamma_psi_qp") else self.gamma_psi_qp(T)
+    def T2(self, T: float, frequency: float) -> float:
+        """Total Dephasing time, or T2*"""
+        T1 = self.T1(T, frequency)
+        gamma_psi_qp = self.gamma_psi_qp(T, frequency)
         gamma_psi_base = self.config.get("gamma_psi_base")
         
         # T2 = 1/(1/(2T1) + γ_φ_base + γ_φ_qp)
-        T2 = 1/(1/(2*T1) + gamma_psi_base + gamma_psi_qp)
+        T_psi = self.T_psi(T, frequency)
+        T2 = 1/(1/(2*T1) + T_psi)
+        logging.info(f"Calculated value of T2 at ({T}, {frequency}): {T2}")
         
-        self.calculated_values["T2"] = T2
         return T2
+    
+    def T_psi(self, T: float, frequency: float):
+        """Pure Dephasing time"""
+        gamma_psi_qp = self.gamma_psi_qp(T, frequency)
+        gamma_psi_base = self.config.get("gamma_psi_base")
+        T_psi = gamma_psi_base + gamma_psi_qp
+        logging.info(f"Calculated value of T_psi at ({T}, {frequency}): {T_psi}")
 
-    def calculate_config(self, control_parameters: dict):
-        DEBUG = os.environ.get('DEBUG', 'false').lower() == 'true'
-        T = retrieve_value_with_units(control_parameters, "temperature")
-        T1 = self.calculated_values.get("T1") if self.calculated_values.get("T1") else self.T1(T)
-        T2 = self.calculated_values.get("T2") if self.calculated_values.get("T2") else self.T2(T)
-        if DEBUG:
-            print(f"At temperature {T}\nT1: {T1}, T2: {T2}")
-            print(f"debug output:\n")
-            pprint.pprint(self.calculated_values)
+        return T_psi
+    
+    def F_N(self, T: float, N: int, gate_length: float, frequency: float) -> float:
+        """Gate fidelity when only accounting for thermal sources of error (Paper 2, Eq. 6)"""
+        T1 = self.T1(T, frequency)
+        T_psi = self.T_psi(T, frequency)
+        d = 2 ** N  # Dimension of Hilbert space
 
-        return {"T1": T1, "T2": T2}
+        print(f"All vals: T1:{T1},T_psi:{T_psi},d:{d},N:{N},gate_length:{gate_length}")
+        F_N = 1 - (d*N*gate_length)/(2*(d+1)) * (1/T1 + 1/T_psi)
+        #return min(max(0, F_N), 1)
+        logging.info(f"Calculated value of F_N at ({T}, {frequency}): {F_N}")
+
+        return F_N
+
+    def calculate_qb_config(self, control_parameters: dict, qb_path: str, jm: json_manager):
+        logging.info(f"Calculating a qubit config now\n")
+        T = get_config_value(control_parameters, "temperature")
+
+        frequency = jm.find_value_with_units("frequency", qb_path)
+        logging.info(f"frequency: {frequency}")
+
+        actual_T1 = jm.find_value_with_units("T1", qb_path)
+        logging.info(f"actual_T1: {actual_T1}")
+        logging.info(f"calculating T1 for the initial temperature of {self.init_T} now")
+        calculated_T1 = self.T1(self.init_T, frequency)
+        adj_T1 = actual_T1 / calculated_T1
+        logging.info(f"calculated_T1: {calculated_T1}")
+        logging.info(f"adj_T1: {adj_T1}")
+
+        actual_T2 = jm.find_value_with_units("T2", qb_path)
+        calculated_T2 = self.T2(self.init_T, frequency)
+        logging.info(f"actual_T2: {actual_T2}")
+        logging.info(f"calculating T2 for the initial temperature of {self.init_T} now")
+        adj_T2 = actual_T2 / calculated_T2
+        logging.info(f"calculated_T2: {calculated_T2}")
+        logging.info(f"adj_T2: {adj_T2}")
+
+        logging.info(f"calculating T2 for the working temperature of {T} now")
+        T1 = self.T1(T, frequency) * adj_T1
+        logging.info(f"working_T1: {T1}")
+        logging.info(f"calculating T2 for the working temperature of {T} now")
+        T2 = self.T2(T, frequency) * adj_T2
+        logging.info(f"working_T2: {T2}")
+
+        qb_config = {"T1": T1, "T2": T2}
+        logging.info(f"ending qb calculations with the following config: working_T1: {T1}, working_T2: {T2}")
+        return qb_config
+    
+    def calculate_gate_config(self, control_parameters: dict, gate_path: str, jm: json_manager):
+        logging.info(f"Calculating a gate config now\n")
+        gate_param_path = gate_path + "parameters."
+
+        relevant_qubits = jm.resolve(gate_path + "qubits")
+        N = len(relevant_qubits)
+        freq_sum = 0
+        for qb_num in relevant_qubits:
+            qb_path = f"qubits.[{qb_num}]."
+            freq = jm.find_value_with_units("frequency", qb_path)
+            freq_sum += freq
         
+        avg_frequency = freq_sum / N
+        logging.info(f"avg_frequency: {avg_frequency}")
+
+        logging.info(f"Now looking for gate error from {gate_param_path}")
+        actual_gate_error = jm.find_value_with_units("gate_error", gate_param_path)
+        gate_length = jm.find_value_with_units("gate_length", gate_param_path)
+        logging.info(f"actual gate error: {actual_gate_error}")
+        logging.info(f"gate_length: {gate_length}")
+
+        logging.info(f"calculating gate error for the initial temperature of {self.init_T} now")
+        calculated_error = 1 - self.F_N(self.init_T, N, gate_length, avg_frequency)
+        if actual_gate_error:
+            adjustement = calculated_error - actual_gate_error
+            logging.info(f"calculated_error: {calculated_error}")
+            logging.info(f"adjustement: {adjustement}")
+
+        working_T = get_config_value(control_parameters, "temperature")
+        logging.info(f"calculating working gate error for the working temperature of {working_T} now")
+            
+        if actual_gate_error:
+            working_gate_error = (1-self.F_N(working_T, N, gate_length, avg_frequency)) - adjustement
+        else:
+            working_gate_error = None
+        logging.info(f"working_gate_error: {working_gate_error}")
+        logging.info(f"ending gate calculations with the following config: gate_error: {working_gate_error}")
+
+        return {"gate_error": working_gate_error}
 
 
 backend_name = "perth"

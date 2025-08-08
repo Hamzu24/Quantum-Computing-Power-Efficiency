@@ -26,6 +26,7 @@ from qiskit.providers.models import (
     BackendProperties,
 )
 from _helpers.backend_builders import builder_wrapper
+import logging
 
 
 EXISTING_MODELS = {
@@ -304,10 +305,10 @@ def get_commit_sha_for_branch(owner, repo, branch):
     if response.status_code == 200:
         return response.json()['object']['sha']
     else:
-        raise Exception(f"Branch not found: {response.status_code}")
+        logging.critical(f"Branch not found: {response.status_code}")
+        return None
 
 def download_config(backend_name, exit_if_unavailable=True):
-    DEBUG = os.environ.get('DEBUG', 'false').lower() == 'true'
     save_location = f"qiskit_backend_configs/{backend_name}"
     dir_path = Path(save_location)
     keywords = ['conf', 'defs', 'props']
@@ -327,13 +328,19 @@ def download_config(backend_name, exit_if_unavailable=True):
 
     # Get files from GitHub API
     latest_commit_sha = get_commit_sha_for_branch("Qiskit", "qiskit", "stable/0.46")
+    if latest_commit_sha is None:
+        if exit_if_unavailable:
+            raise Exception("The commit SHA was not found from the branch. Exiting because exit_if_unavailable is True")
+        else:
+            logging.critical("Returning from download_config without downloading anything")
+            return None
+    
     url = f"https://api.github.com/repos/Qiskit/qiskit/contents/qiskit/providers/fake_provider/backends/{backend_name}?ref={latest_commit_sha}"
     response = requests.get(url)
     props_filename = None
 
     if response.status_code != 200:
-        if DEBUG:
-            print(f"Unable to find files for the backend {backend_name} from the url {url}.")
+        logging.error(f"Unable to find files for the backend {backend_name} from the url {url}.")
         if exit_if_unavailable:
             raise requests.exceptions.HTTPError(
                 f"HTTP: {response.status_code} for {url}"
@@ -353,8 +360,7 @@ def download_config(backend_name, exit_if_unavailable=True):
                 file_response = requests.get(file_info['download_url'])
                 with open(save_location + f"/{filename}", 'wb') as f:
                     f.write(file_response.content)
-                if DEBUG:
-                    print(f"Downloaded: {filename}")
+                logging.info(f"Downloaded: {filename}")
 
                 if "props" in filename:
                     props_filename = filename
@@ -366,9 +372,9 @@ def download_config(backend_name, exit_if_unavailable=True):
             original_props_filename = save_location + "/" + props_filename.split(".")[0] + "_original.json"
             subprocess.run(["cp", save_location + "/" + props_filename, original_props_filename])
         except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"A subprocess exited with an error: {e}")
+            logging.critical(f"The error {e} was thrown when copying the original props file!")
     else:
-        raise FileNotFoundError("The props file which is necessary to configuration of fake backends was not found from the qiskit repository")
+        logging.critical(f"The props file which is necessary to configuration of fake backends was not found from the qiskit repository")
         
 
 def get_fake_backend(backend_name):
@@ -376,7 +382,7 @@ def get_fake_backend(backend_name):
 
     match = next((item for item in EXISTING_MODELS if backend_name in item.lower()), None)
     if match is None:
-        raise ValueError("The specified fake backend is not currenlty supported")
+        raise ValueError("The specified fake backend is not currently supported")
 
     matching_class = EXISTING_MODELS[match]
 

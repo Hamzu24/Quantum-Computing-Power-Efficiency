@@ -34,6 +34,7 @@ import uuid
 
 ##### MY IMPORTS
 import pprint
+import logging
 
 
 def random_complex_matrix(n):
@@ -402,7 +403,7 @@ if __name__ == "__main__":
     filepath = submitter.benchmark_path
 
     #OLD: num_qubits_list = [2, 3, 4, 5, 6, 7,]
-    num_qubits_list = [5] # NEW!
+    num_qubits_list = [5, 8] # NEW!
     num_trials = 200
     optimization_level = 1
 
@@ -427,7 +428,7 @@ if __name__ == "__main__":
     mean_noisy_heavy_outputs = []
 
     for n_qubits in tqdm(num_qubits_list):
-        print(f'Number of qubits: {n_qubits}: \n')
+        logging.info(f'Running EQV with the following number of qubits: {n_qubits}: \n')
 
         ideal_heavy_outputs = np.asarray(
                     [trial["ideal_prob_heavy_output"] for trial in qc_list[n_qubits]]

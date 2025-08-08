@@ -13,6 +13,7 @@ from pprint import pprint
 from copy import deepcopy
 from _helpers.nm_helper import craft_noise_model
 import os
+import logging
 
 CONFIG_PATH = "configs.json"
 try:
@@ -35,7 +36,6 @@ class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
 
     def __init__(self, benchmark_name: str, device_name: str = "noisy_sim"):
         super().__init__(benchmark_name, device_name)
-        DEBUG = os.environ.get('DEBUG', 'false').lower() == 'true'
         self.total_gates = Counter()
 
         if power_configs.get(device_name) is not None:
@@ -66,12 +66,11 @@ class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
         
         self.gate_history = []
 
-        if DEBUG:
-            if self.device_name in ["noisy_sim", "noisy_sim_with_shots"]:
-                print(f"the backend being used is {self.backend}, noise model is {self.backend.noise_model.name}, device noise model is {self.backend.device.noise_model.name}")
-                print(f"basis gates are {noise_model_instance.basis_gates}")
-            else:
-                print(f"the backend being used is {self.backend}")
+        if self.device_name in ["noisy_sim", "noisy_sim_with_shots"]:
+            logging.debug(f"You are using a noisy simulator. The backend being used is {self.backend}, noise model is {self.backend.noise_model.name}, device noise model is {self.backend.device.noise_model.name}")
+            logging.debug(f"basis gates are {noise_model_instance.basis_gates}")
+        else:
+            logging.debug(f"You are not using a noisy simulator. The backend being used is {self.backend}")
     
     def _has_a_measurement(self, circuits, circuit_type: str = "qasm_strs"):
         def qasm_string_has_measurement(qasm_string):

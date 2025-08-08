@@ -7,10 +7,8 @@ import json
 import matplotlib
 import argparse
 import os
-
-DEFAULT_PATH = "tutorials/circuit_execution_quality_metrics/quantum_volume/quantum_volume.py"
-devices_needed = ["noisy_sim"]
-metric_name = "quantum_volume"
+import datetime
+import logging
 
 def get_submitters(objects):
     submitters = {}
@@ -25,24 +23,47 @@ def get_submitters(objects):
 
     return submitters
 
-
 if __name__ == "__main__":
+    DEFAULT_PATH = "tutorials/circuit_execution_quality_metrics/quantum_volume/quantum_volume.py"
+    devices_needed = ["noisy_sim"]
+
     parser = argparse.ArgumentParser()
     parser.add_argument('path', nargs='?', default=DEFAULT_PATH, help='Optional path')
     parser.add_argument('-v', '--visual', action='store_true', help='Visual flag')
-    parser.add_argument('-d', '--debug', action='store_true', help='Print debug outputs')
+    parser.add_argument('--log', 
+                    choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL', 'debug', 'info', 'error', 'critical'],
+                    default='INFO',
+                    help='Set the logging level')
+    parser.add_argument('--log-file', 
+                    help='Log to file instead of console')
     args = parser.parse_args()
 
-    metric_name = args.path.split('/')[0].split('.')[0]
+    log_level = getattr(logging, args.log.upper())
+    logging_fmt='%(asctime)s | %(funcName)s:%(lineno)d | %(levelname)s | %(message)s'
+
+    if args.log_file:
+        logging.basicConfig(
+            filename=args.log_file,
+            level=log_level,
+            format=logging_fmt
+        )
+    else:
+        logging.basicConfig(
+            level=log_level,
+            format=logging_fmt
+        )
+
+    logging.getLogger('qiskit').setLevel(logging.WARNING)
+
+    metric_name = args.path.split('/')[-1].split('.')[0]
 
     if not args.visual:
         matplotlib.use('Agg')  # Use non-interactive backend
 
-    os.environ['DEBUG'] = str(args.debug).lower()
-    print(f"""Now running the metric with the following settings:
+    logging.info(f"""Now running the metric with the following settings:
         metric: {metric_name}
         visual mode: {args.visual}
-        debug mode: {args.debug}
+        logging level: {log_level}
          """) 
     module_globals = runpy.run_path(args.path, run_name="__main__")
 
