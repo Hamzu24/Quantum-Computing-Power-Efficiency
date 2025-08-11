@@ -15,6 +15,35 @@ Papers = ["""Lvov, D. S., Lemziakov, S. A., Ankerhold, E., Peltonen, J. T., & Pe
           Thermometry based on a superconducting qubit. Physical Review Applied, 23(5). https://doi.org/10.1103/physrevapplied.23.054079""",
           """Simbierowicz, S., Borrelli, M., Monarkha, V., Nuutinen, V., & Lake, R. E. (2024).
           Inherent Thermal-Noise problem in addressing Qubits. PRX Quantum, 5(3). https://doi.org/10.1103/prxquantum.5.030302"""]
+          
+qb_config_infos = []
+gate_config_infos = []
+
+def log_info():
+    avg_T1 = 0
+    avg_T2 = 0
+    num_qb = 0
+    for info in qb_config_infos:
+        logging.info(info["adjs"])
+        avg_T1 += info["adjs"]["T1"]
+        avg_T2 += info["adjs"]["T2"]
+        num_qb += 1
+
+    avg_T1 /= num_qb
+    avg_T2 /= num_qb
+    logging.info(f"avg T1 adj: {avg_T1}")
+    logging.info(f"avg T2 adj: {avg_T2}")
+
+    logging.info("\n\n")
+    avg_ge = 0
+    num_gates = 0
+    for info in gate_config_infos:
+        logging.info(info["adjs"])
+        avg_ge += info["adjs"]
+        num_gates += 1
+
+    avg_ge /= num_gates
+    logging.info(f"avg ge adj: {avg_ge}")
 
 HARDWARE_CONFIG_PATH = Path("qiskit_backend_configs/hardware_constants.json")
 
@@ -51,6 +80,7 @@ class builder_wrapper:
     def __init__(self, name: str):
         self.name = name
         self.load_hardware_params(HARDWARE_CONFIG_PATH)
+        logging.info(f"config for backend: {self.config}")
         
         builder_name = self.config["builder_class"]
         self.builder = globals()[builder_name](self.name, self.config)
@@ -232,7 +262,7 @@ class default_builder:
         
         # T2 = 1/(1/(2T1) + γ_φ_base + γ_φ_qp)
         T_psi = self.T_psi(T, frequency)
-        T2 = 1/(1/(2*T1) + T_psi)
+        T2 = 1/(1/(2*T1) + 1/(T_psi))
         logging.info(f"Calculated value of T2 at ({T}, {frequency}): {T2}")
         
         return T2
@@ -241,7 +271,7 @@ class default_builder:
         """Pure Dephasing time"""
         gamma_psi_qp = self.gamma_psi_qp(T, frequency)
         gamma_psi_base = self.config.get("gamma_psi_base")
-        T_psi = gamma_psi_base + gamma_psi_qp
+        T_psi = 1/(gamma_psi_base + gamma_psi_qp)
         logging.info(f"Calculated value of T_psi at ({T}, {frequency}): {T_psi}")
 
         return T_psi
@@ -252,7 +282,7 @@ class default_builder:
         T_psi = self.T_psi(T, frequency)
         d = 2 ** N  # Dimension of Hilbert space
 
-        print(f"All vals: T1:{T1},T_psi:{T_psi},d:{d},N:{N},gate_length:{gate_length}")
+        logging.info(f"All vals: T1:{T1},T_psi:{T_psi},d:{d},N:{N},gate_length:{gate_length}")
         F_N = 1 - (d*N*gate_length)/(2*(d+1)) * (1/T1 + 1/T_psi)
         #return min(max(0, F_N), 1)
         logging.info(f"Calculated value of F_N at ({T}, {frequency}): {F_N}")
@@ -291,6 +321,8 @@ class default_builder:
 
         qb_config = {"T1": T1, "T2": T2}
         logging.info(f"ending qb calculations with the following config: working_T1: {T1}, working_T2: {T2}")
+
+        qb_config_infos.append({"config": qb_config, "actual": {"T1": actual_T1, "T2": actual_T2}, "calculated": {"T1": calculated_T1, "T2": calculated_T2}, "adjs": {"T1": adj_T1, "T2": adj_T2}})
         return qb_config
     
     def calculate_gate_config(self, control_parameters: dict, gate_path: str, jm: json_manager):
@@ -331,7 +363,10 @@ class default_builder:
         logging.info(f"working_gate_error: {working_gate_error}")
         logging.info(f"ending gate calculations with the following config: gate_error: {working_gate_error}")
 
-        return {"gate_error": working_gate_error}
+        gate_config = {"gate_error": working_gate_error}
+        if actual_gate_error:
+            gate_config_infos.append({"config": gate_config, "actual": actual_gate_error, "calculated": calculated_error, "adjs": adjustement})
+        return gate_config
 
 
 backend_name = "perth"

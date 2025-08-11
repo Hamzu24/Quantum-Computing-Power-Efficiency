@@ -1,12 +1,12 @@
 {
     "modern": {
-        "y0": 3e5,
+        "y0": 5000,
         "ymxc_y0": 0.8,
-        "T_env": 0.015,
-        "gamma_psi_base": 4e4,
+        "T_env": 0.03,
+        "gamma_psi_base": 7500,
         "delta": 2.88e-23,
         "builder_class": "default_builder",
-        "N_e": 2.5,             
+        "N_e": 50000,
         "E_c": 1.524e-25,
         "E_J": 9.944e-24
     },

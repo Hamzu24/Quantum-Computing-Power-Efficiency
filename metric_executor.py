@@ -1,6 +1,8 @@
 import gc
+import time
 import _helpers.circuit_submitter
 import _helpers.enhanced_circuit_submitter
+from _helpers.backend_builders import log_info
 from copy import copy
 import runpy
 import json
@@ -66,6 +68,8 @@ if __name__ == "__main__":
         logging level: {log_level}
          """) 
     module_globals = runpy.run_path(args.path, run_name="__main__")
+    time.sleep(1)
+    log_info()
 
     gc.collect()
     objects = gc.get_objects()
