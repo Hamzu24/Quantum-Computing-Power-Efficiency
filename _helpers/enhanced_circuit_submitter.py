@@ -2,7 +2,7 @@ import _helpers.circuit_submitter
 from collections import Counter
 from pathlib import Path
 import json
-from typing import Iterable, Union
+from typing import Iterable, Union, Tuple
 from braket.tasks.local_quantum_task import LocalQuantumTask
 from qiskit.providers.aer import AerJob
 from qiskit.circuit.quantumcircuit import QuantumCircuit
@@ -12,91 +12,98 @@ from braket.aws import AwsQuantumTask
 from pprint import pprint
 from copy import deepcopy
 from _helpers.nm_helper import craft_noise_model
+from _helpers.helpers import read_config
+from _helpers.registry import submitter_registry
 import os
 import logging
 
-CONFIG_PATH = "configs.json"
-try:
-    with open(CONFIG_PATH, 'r') as f:
-        configs = json.load(f)
-except FileNotFoundError:
-    raise FileNotFoundError("Power config file not found")
-except json.JSONDecodeError as e:
-    raise ValueError(f"Invalid JSON in power config file: {e}")
-
-power_configs = configs.get("power_configs")
-noise_models = configs.get("noise_models")
-device_tracking = configs.get("device_tracking")
-
-if power_configs is None or noise_models is None or device_tracking is None:
-    raise ValueError("Invalid config file! Must include power_configs, noise_models and device_tracking config options!")
-
 class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
     SIMULATION_METHOD="density_matrix"
-
+    
     def __init__(self, benchmark_name: str, device_name: str = "noisy_sim"):
         super().__init__(benchmark_name, device_name)
-        self.total_gates = Counter()
+        
+        configs = read_config()
+        self._validate_configs(configs)
 
+        self._setup_power_config(configs, device_name)
+        self._setup_noise_model(configs, device_name)
+        self._setup_device_tracking(configs, device_name)
+        
+        self.total_gates = Counter()
+        self.gate_history = []
+        submitter_registry.store_submitter(self, device_name)
+        
+    def _validate_configs(self, configs):
+        required_keys = ["power_configs", "noise_models", "device_tracking"]
+        for key in required_keys:
+            if configs.get(key) is None:
+                raise ValueError("Invalid config file! Must include power_configs, noise_models and device_tracking config options!")
+
+    def _setup_power_config(self, configs, device_name):
+        power_configs = configs.get("power_configs")
         if power_configs.get(device_name) is not None:
             self.power_config = power_configs.get(device_name)
         else:
             self.power_config = power_configs.get("default_power_config")
-        
-        noise_model_instance = None
-        if device_name in ["noisy_sim", "noisy_sim_with_shots"]:
-            if noise_models.get(device_name) is not None:
-                noise_model_specs = noise_models.get(device_name)
-                noise_model_instance = craft_noise_model(noise_model_specs)
 
-            elif noise_models.get("default_noise_model") is not None:
-                noise_model_specs = noise_models.get("default_noise_model")
-                noise_model_instance = craft_noise_model(noise_model_specs)
-            
-            self.backend.noise_model = noise_model_instance
-            self.backend.device.noise_model = noise_model_instance
-            self.backend.device.sim = self.backend.device.backend(
-                method=CircuitSubmitter.SIMULATION_METHOD, noise_model=noise_model_instance
-            )
+    def _apply_noise_model(self, noise_model_instance):
+        self.backend.noise_model = noise_model_instance
+        self.backend.device.noise_model = noise_model_instance
+        self.backend.device.sim = self.backend.device.backend(
+            method=CircuitSubmitter.SIMULATION_METHOD, noise_model=noise_model_instance
+        )
+
+    def _setup_noise_model(self, configs, device_name):
+        noise_models = configs.get("noise_models")
         
+        noisy_devices = ["noisy_sim", "noisy_sim_with_shots"]
+        if device_name not in noisy_devices:
+            logging.debug(f"You are not using a noisy device simulator. The backend being used is {self.backend}")
+            return
+
+        if noise_models.get(device_name) is not None:
+            noise_model_specs = noise_models.get(device_name)
+        elif noise_models.get("default_noise_model") is not None:
+            noise_model_specs = noise_models.get("default_noise_model")
+
+        if noise_model_specs:
+            noise_model_instance = craft_noise_model(noise_model_specs)
+            self._apply_noise_model(noise_model_instance)
+            return
+        
+        logging.warning(f"No noise model spec set for the device {device_name} or for default_noise_model in the noise_models configuration dictionary. Using the program's default noise model")
+        
+        
+        logging.debug(f"You are using a noisy simulator. The backend being used is {self.backend}, noise model is {self.backend.noise_model.name}, device noise model is {self.backend.device.noise_model.name}")
+        logging.debug(f"basis gates are {noise_model_instance.basis_gates}")
+
+    def _setup_device_tracking(self, configs, device_name):
+        device_tracking = configs.get("device_tracking")
         if device_tracking.get(device_name) is not None:
             self.tracking_number = device_tracking.get(device_name)
         else:
             self.tracking_number = 0
         
-        self.gate_history = []
-
-        if self.device_name in ["noisy_sim", "noisy_sim_with_shots"]:
-            logging.debug(f"You are using a noisy simulator. The backend being used is {self.backend}, noise model is {self.backend.noise_model.name}, device noise model is {self.backend.device.noise_model.name}")
-            logging.debug(f"basis gates are {noise_model_instance.basis_gates}")
-        else:
-            logging.debug(f"You are not using a noisy simulator. The backend being used is {self.backend}")
+    def _qasm_string_has_measurement(self, qasm_string):
+        measurement_keywords = ['measure', 'reset']
+        
+        qasm_lower = qasm_string.lower()
+        return any(keyword in qasm_lower for keyword in measurement_keywords)
     
     def _has_a_measurement(self, circuits, circuit_type: str = "qasm_strs"):
-        def qasm_string_has_measurement(qasm_string):
-            measurement_keywords = ['measure', 'reset']
-            
-            for keyword in measurement_keywords:
-                if keyword in qasm_string.lower():
-                    return True
-            
-            return False
-        
         if isinstance(circuits, Iterable) and not isinstance(circuits, str):
-            for circuit in circuits:
-                if self._has_a_measurement(circuit, circuit_type):
-                    return True
-            return False
+            return any(self._has_a_measurement(circuit, circuit_type) for circuit in circuits)
         
         if circuit_type == "qasm_strs":
-            if qasm_string_has_measurement(circuits):
-                return True
+            return self._qasm_string_has_measurement(circuits)
         elif circuit_type == "qasm_paths":
             qasm_strs = QuantumCircuit.from_qasm_file(circuits).qasm()
-            if qasm_string_has_measurement(qasm_strs):
-                return True
+            return self._qasm_string_has_measurement(qasm_strs)
         elif circuit_type == "braket_circuits":
             raise NotImplementedError("measurement checking not implemented for braket circuits!")
+        else:
+            raise ValueError(f"Unsupported circuit type: {circuit_type}")
         
         return False
 
@@ -124,7 +131,7 @@ class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
 
         return tasks
 
-    def get_power_consumption(self):
+    def get_power_consumption(self) -> Tuple[Counter, list[Counter]]:
         total_consumption = self._calculate_power_consumption(self.total_gates)
 
         staggered_consumptions = []
@@ -140,30 +147,29 @@ class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
 
         return total_consumption, staggered_consumptions
 
+    def _get_circuits_from_aer_job(self, job: AerJob):
+        if hasattr(job, '_circuits'):
+            return job._circuits
+        elif hasattr(job, 'circuits'):
+            return job.circuits
+    
+        raise ValueError(f"Unable to extract the circuit from the AerJob: {job}")
+
     def _get_circuits_from_tasks(self, tasks: Union[list[LocalQuantumTask], list[QiskitTaskWrapper]]):
         circuits = []
-
-        def get_circuits_from_aer_job(job: AerJob):
-            if hasattr(job, '_circuits'):
-                return job._circuits
-            elif hasattr(job, 'circuits'):
-                return job.circuits
-        
-            raise ValueError(f"Unable to extract the circuit from the AerJob: {job}")
 
         if not tasks:
             return None
         elif isinstance(tasks[0], QiskitTaskWrapper):
             for task in tasks:
                 job = task.task
-                circuit = get_circuits_from_aer_job(job)
+                circuit = self._get_circuits_from_aer_job(job)
                 circuits.append(circuit)
         elif isinstance(tasks[0], LocalQuantumTask):
             for task in tasks:
                 result = task.result()
                 metadata = result.task_metadata
                 additional_metadata = result.additional_metadata
-                #print(f"QuantumCircuit from Braket has this metadata: {metadata}\n{additional_metadata}")
                 circuit = result.task_metadata.braketSchemaHeader
                 circuits.append(circuit)
 
@@ -186,9 +192,9 @@ class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
                 self._populate_gate_counter(counter, circuit)
 
     def _calculate_power_consumption(self, gates: Counter, error_if_incomplete: bool = True):
-        DEBUG = os.environ.get('DEBUG', 'false').lower() == 'true'
         consumption = Counter()
         operations_to_ignore = ["save_density_matrix", "barrier"]
+        
         for operation, count in gates.items():
             if operation in operations_to_ignore:
                 continue

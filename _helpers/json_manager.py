@@ -1,39 +1,9 @@
 import json
 import logging
+from _helpers.helpers import get_unit_multiplier
+from _helpers.constants import PROPERTY_UNITS
 
-PROPERTY_UNITS = {
-    "T1": "us",
-    "T2": "us", 
-    "frequency": "GHz",
-    "anharmonicity": "GHz",
-    "readout_error": "",
-    "prob_meas0_prep1": "",
-    "prob_meas1_prep0": "",
-    "readout_length": "ns",
-    "gate_length": "ns",
-    "gate_error": ""
-}
-
-
-SI_PREFIXES = {
-    'P': 1e15,   # peta
-    'T': 1e12,   # tera
-    'G': 1e9,    # giga
-    'M': 1e6,    # mega
-    'k': 1e3,    # kilo
-    '': 1,       # base unit
-    'm': 1e-3,   # milli
-    'μ': 1e-6,   # micro (Greek mu)
-    'u': 1e-6,   # micro (alternative 'u' for systems that don't support μ)
-    'n': 1e-9,   # nano
-}
-
-def get_unit_multiplier(unit: str):
-    if len(unit) == 0:
-        return None
-    return SI_PREFIXES.get(unit[0])
-
-class json_manager():
+class JsonManager():
     def __init__(self, filename: str):
         self.filename = filename
         with open(filename, 'r') as file:

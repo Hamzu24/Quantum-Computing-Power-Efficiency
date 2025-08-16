@@ -1,0 +1,159 @@
+\documentclass[showpacs,amsmath,amssymb,twocolumn,superscriptaddress,notitlepage,preprintnumbers,pra]{revtex4-1}
+% \usepackage{ctex}
+\usepackage[dvips]{graphicx}
+\usepackage{amsmath,amssymb,amsthm,mathrsfs,amsfonts,dsfont}
+\usepackage{subfigure, epsfig}
+\usepackage{braket}
+\usepackage{bm}
+\usepackage{enumerate}
+\usepackage{color,xcolor}
+\usepackage{qcircuit}
+\usepackage{graphicx}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{algpseudocode}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true, linkcolor=blue, citecolor=blue, urlcolor=black }
+\usepackage{comment}
+\usepackage[normalem]{ulem}
+ 
+
+\newcommand{\tr}{\operatorname{Tr}}
+\newcommand{\Var}{\mathrm{Var}}
+ 
+\newcommand{\Cohere}{\Gamma}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
+
+% \newcommand{\mc}{\mathcal}
+\newcommand{\mb}{\mathbf}
+\newcommand{\mbb}{\mathbb}
+\newcommand{\mr}{\mathrm}
+\newcommand{\abs}[1]{\lvert#1\rvert}
+
+
+\newcommand{\sinc}{\mathrm{sinc}}
+\newcommand{\sech}{\mathrm{sech}}
+
+\newcommand{\Ht}{H$_2$ }
+\newcommand{\mc}[1]{\mathcal{#1}}
+%\newcommand{\hat}[1]{\mathcal{#1}}
+\DeclareMathOperator*{\E}{\mathbb{E}}
+
+\usepackage{varioref}
+\labelformat{equation}{(#1)}
+\def\equationautorefname{Eq.}
+\labelformat{section}{#1}
+\def\sectionautorefname{Sec.}
+\labelformat{figure}{#1}
+\def\figureautorefname{Fig.}
+\labelformat{proposition}{#1}
+\def\propositionautorefname{Proposition}
+\labelformat{lemma}{#1}
+\def\lemmaautorefname{Lemma}
+\labelformat{theorem}{#1}
+\def\theoremautorefname{Theorem}
+\labelformat{observation}{#1}
+\def\observationautorefname{Observation}
+\labelformat{definition}{#1}
+\def\definitionautorefname{Definition}
+\labelformat{problem}{#1}
+\def\problemautorefname{Problem}
+\labelformat{algorithm}{#1}
+\def\algorithmautorefname{Algorithm}
+\labelformat{corollary}{#1}
+\def\corollaryautorefname{Corollary}
+\labelformat{statement}{#1}
+\def\statementautorefname{Statement}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{observation}{Observation}
+\newtheorem{proposition}{Proposition}
+\newtheorem{statement}{Statement}
+\newtheorem{lemma}{Lemma}
+\newtheorem{remark}{Remark}
+\newtheorem{condition}{Condition}
+\newtheorem{corollary}{Corollary}
+\newtheorem{definition}{Definition}
+\newtheorem{assumption}{Assumption}
+\newtheorem{problem}{Problem}
+
+\newcommand{\sun}[1]{\textcolor{blue}{#1}}
+\newcommand{\blue}{\textcolor{blue}} %blue text
+ 
+
+\begin{document}
+ 
+ 
+
+\title{Energy consumption estimates}
+ 
+
+\date{\today}
+
+ 
+% --------------------  ABSTRACT  --------------------
+
+% ------------  AUTHORS AND AFFILIATIONS ----------
+ 
+
+ 
+
+\begin{abstract}
+ 
+ 
+
+\end{abstract}
+
+\maketitle
+
+
+ 
+\section{Introduction}
+\subsection{(Proposed) Hardware Parameters:}
+
+I make the following modelling assumptions for the IBM processors:
+
+We use the following hardware parameters in the temperature dependent model:
+\begin{itemize}
+    \item $\gamma_0$ is fit at runtime to the known values of $T_1$ at the default operational mixing chamber temperature
+    \begin{itemize}
+        \item Assume the operational cryostat temperature to be 0.013K
+    \end{itemize}
+    \item $\gamma_{\varphi-\text{base}}$ is fit at runtime to the known values of $T_2$ at the default operational mixing chamber temperature
+    \begin{itemize}
+        \item Again, assume the operational cryostat temperature to be 0.013K 
+    \end{itemize}
+    \item $\frac{\gamma_{MXC}}{\gamma_0}$ is $0.85$.
+    \begin{itemize}
+        \item This represents the maximum value from the experimental dataset reported in Ref.~\cite{lvov2025thermometry}.
+    \end{itemize}
+    \item $T_{env}$ as 30mK
+    \begin{itemize}
+        \item Effective temperatures as low as 20mK have been observed Ref.~\cite{simbierowicz2024thermal_noise}.
+    \end{itemize}
+    \item $\Delta$ (superconducting energy gap) of $2.88e^{-23}$
+    \begin{itemize}
+        \item This is the known value for Aluminium, which we can assume the electrodes used in IBM transmon qubits are made of
+    \end{itemize}
+    \item $\omega_{ge}$ is extracted from known configuration data for each backend individually for each qubit
+    \item $N_e$, the number of effective channels in the Josephson Junction, is estimated at $1.29\times10^{5}$. We calculate this value using:
+    \begin{itemize}
+        \item An estimated normal resistance of the Josephson Junction of $5\text{k}\Omega$
+        \item Transparency of the junction in the subgap regime of $5\times10^{-5}$
+    \end{itemize}
+    \item $E_c$, charging energy of the capacitors in the transmon qubits, of $0.95\mu$eV
+    \item $E_j$, josephson energy of the transmon qubits, of $62.1\mu$eV
+\end{itemize}
+
+Starting with an estimated value of $\gamma_0$: $5e3$, and an estimated standard operational cryostat temperature of 0.013K, we minimise the squared error
+between the calculated and known, default relaxation time of the qubits. We then do the same for the value of $\gamma_{\varphi-\text{base}}$ keeping
+$\gamma_0$ constant
+
+The final scale factors for the value of $T_1$ and $T_2$ for each qubit are stored and applied to the calculated values to maintain granularity
+
+When calculating gate errors, the difference between the known gate error and calculated gate error at the operational temperature is stored and assumed to be
+representative of the non-thermal error, and thus independent of temperature. It is then added to future calculated gate errors
+
+\bibliography{references.bib}
+\end{document}	

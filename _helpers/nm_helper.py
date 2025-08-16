@@ -3,14 +3,9 @@ import os
 import subprocess
 import requests
 import json
-from pathlib import *
+from pathlib import Path
 import inspect
 import copy
-from qiskit_ibm_runtime.fake_provider import (
-    FakeAuckland, FakeGeneva, FakeKolkataV2, FakeManilaV2,
-    FakeMontrealV2, FakeOslo, FakePerth, FakePrague,
-    FakeSherbrooke, FakeTokyo
-)
 from typing import Any
 from qiskit.circuit.library import RZXGate, RZGate, RXGate, RZZGate
 from qiskit_aer.noise import (
@@ -25,115 +20,78 @@ from qiskit_aer.noise import (
 from qiskit.providers.models import (
     BackendProperties,
 )
-from _helpers.backend_builders import builder_wrapper
+from _helpers.builders.builder_wrapper import BuilderWrapper
 import logging
+from _helpers.helpers import get_control_parameters, extract_from_json
+from _helpers.constants import EXISTING_MODELS, DEFAULT_INSTRUCTION_TIMES
+from _helpers.registry import download_registry
 
+def config_exists(backend_name):
+    config_folder = os.environ.get("BACKEND_CONFIGS_FOLDER") + backend_name
+    res = subprocess.run(["ls", config_folder], capture_output=True)
+    if res.stderr:
+        return False
+    filenames = res.stdout.decode().split("\n")
+    if "props" not in filenames:
+        return False
+    return True
 
-EXISTING_MODELS = {
-    "fakeAuckland": FakeAuckland,
-    "fakeGeneva": FakeGeneva,
-    "fakeKolkataV2": FakeKolkataV2,
-    "fakeManilaV2": FakeManilaV2,
-    "fakeMontrealV2": FakeMontrealV2,
-    "fakeOslo": FakeOslo,
-    "fakePerth": FakePerth,
-    "fakePrague": FakePrague,
-    "fakeSherbrooke": FakeSherbrooke,
-    "fakeTokyo": FakeTokyo
-}
+def create_backend_symlinks(config, matching_class):
+    backend_name = config.get("name")
+    target_dir = Path(inspect.getsourcefile(matching_class)).parent
+    source_dir = Path(os.environ.get("BACKEND_CONFIGS_FOLDER") + backend_name + "/")
 
-DEFAULT_INSTRUCTION_TIMES = {
-    "time_rz": 0,
-    "time_sx": 50,
-    "time_x": 100,
-    "time_cx": 300,
-    "time_reset": 1000,
-    "time_measure": 100
-}
-
-"""
-A function to easily and configurably extract many values from a dictionary
-
-json_dict: The dictionary to extract the data from
-
-values: A dictionary containing the keys to extract from the dictionary as well as the configuration to manipulate them
-The values in this dictionary are tuples, T.
-T[0]: the default value when the key is not found
-T[1]: A dictionary of replacement values. When json_dict.get(key) is in the keys of this dictionary, it is replaced with its corresponding value.
-
-required_values: the keys required to be in json_dict. If a key in this list is not found, a ValueError is raised
-
-
-returns a list of all the extracted and configured values from values.keys()
-"""
-def extract_from_json(json_dict, values: dict[str, tuple[Any, dict[Any, Any]]], required_values: list = []):
-    return_values = []
-
-    for key, data in values.items():
-        exceptions = data[1]
-        cur_val = json_dict.get("key")
-        if cur_val is None:
-            if key in required_values:
-                raise ValueError(f"Required value {key} was not in json!")
-
-            cur_val = data[0]
-            continue
-
-        elif cur_val in exceptions.keys():
-            cur_val = exceptions.get(cur_val)
+    for item in source_dir.iterdir():
+        symlink_path = target_dir / item.name
         
-        return_values.append(cur_val)
+        if symlink_path.exists():
+            continue
+        
+        symlink_path.symlink_to(item.absolute())
 
-    return return_values
+def get_backend_class(config, backend_name):
+    match = next((item for item in EXISTING_MODELS if backend_name in item.lower()), None)
+    if match is None:
+        raise ValueError("The specified fake backend cannot be found in the supported models!")
 
+    matching_class = EXISTING_MODELS[match]
+    return matching_class
+
+# This builds the backend using the config files
+def build_backend(config, backend_name):
+    init_control_parameters = config.get("init_control_parameters")
+    builder = BuilderWrapper(backend_name, init_control_parameters)
+    control_parameters = get_control_parameters(config)
+    builder.build_backend(control_parameters)
+
+def nm_from_fake_backend(config):
+    backend_name = config.get("name")
+    already_downloaded = download_registry.has_downloaded(backend_name)
+
+    if not already_downloaded:
+        exists = config_exists(backend_name)
+        fetch_config_files(backend_name, exit_if_unavailable=exists)
+
+    # Note that below I build the backend from the config files and get the backend class separately
+    matching_class = get_backend_class(config, backend_name)
+    create_backend_symlinks(config, matching_class)
+    build_backend(config, backend_name)
+
+    # Now, I translate the backend class into a noise model with the correct configuration from the config files
+    # The config files implicitly affect the backend
+    backend = matching_class()
+    noise_model = NoiseModel.from_backend(backend)
+    noise_model.name = config["name"]
+    return noise_model
+                
 # Main function
 def craft_noise_model(config: dict):
     config_type = config.get("type")
     if config_type is None:
-        return None
+        raise ValueError("A noise model must have a type field to be valid!")
 
-    # I have only implemented temperature dependence for fake_backends so far!
     elif config_type == "fake_backend":
-        backend_name = config["name"]
-
-        def config_exists():
-            res = subprocess.run(["ls", f"qiskit_backend_configs/{backend_name}"], capture_output=True)
-            if res.stderr:
-                return False
-            filenames = res.stdout.decode().split("\n")
-            if "props" not in filenames:
-                return False
-            return True
-                
-        exists = config_exists()
-        download_config(backend_name, exit_if_unavailable=exists)
-
-        match = next((item for item in EXISTING_MODELS if backend_name in item.lower()), None)
-        if match is None:
-            raise ValueError("The specified fake backend cannot be found in the supported models!")
-
-        matching_class = EXISTING_MODELS[match]
-
-        target_dir = Path(inspect.getsourcefile(matching_class)).parent
-        source_dir = Path(f"./qiskit_backend_configs/{backend_name}/")
-
-        # CREATING SYMLINKS TO CONFIG FILES!
-        for item in source_dir.iterdir():
-            symlink_path = target_dir / item.name
-            
-            if symlink_path.exists():
-                continue
-            
-            symlink_path.symlink_to(item.absolute())
-        
-        builder = builder_wrapper(backend_name)
-        control_parameters = config.get("control_parameters")
-        builder.build_backend(control_parameters)
-
-        backend = matching_class()
-        noise_model = NoiseModel.from_backend(backend)
-        noise_model.name = config["name"]
-        return noise_model
+        return nm_from_fake_backend(config)
 
     elif config_type == "simple_nm":
         num_qubits, T1s, T2s, instruction_times, overrotation_amount, detuning_amount = \
@@ -150,6 +108,120 @@ def craft_noise_model(config: dict):
         return random_noise_model(num_qubits, seed)
     
     return None
+        
+# GPT function
+def get_commit_sha_for_branch(owner, repo, branch):
+    """Get the commit SHA for a branch with slashes in the name."""
+    encoded_branch = branch.replace('/', '%2F')
+    url = f"https://api.github.com/repos/{owner}/{repo}/git/refs/heads/{encoded_branch}"
+    response = requests.get(url)
+    if response.status_code == 200:
+        return response.json()['object']['sha']
+    else:
+        logging.error(f"Branch not found: {response.status_code}")
+        return None
+
+def get_needed_files(dir_path: Path):
+    needed_keywords = {'conf', 'defs', 'props'}
+    if dir_path.exists():
+        found_keywords = {keyword for item in dir_path.iterdir() if item.is_file()
+                          for keyword in needed_keywords if keyword in item.name.lower()}
+        needed_keywords -= found_keywords
+
+    return needed_keywords
+
+def download_config_files(backend_name, commit_sha):
+    url = f"https://api.github.com/repos/Qiskit/qiskit/contents/qiskit/providers/fake_provider/backends/{backend_name}?ref={commit_sha}"
+    response = requests.get(url)
+
+    if response.status_code != 200:
+        logging.error(f"Unable to find files for the backend {backend_name} from the url {url}.")
+        if exit_if_unavailable:
+            raise requests.exceptions.HTTPError(
+                f"HTTP: {response.status_code} for {url}"
+            )
+        return None
+    else:
+        files = response.json()
+        return files
+
+def create_original_props(dir_path, props_filename):
+    try:
+        props_path = Path(props_filename)
+        original_props_filename = dir_path / f"{props_path.stem}_original.json"
+        subprocess.run(["cp", props_path, original_props_filename])
+    except subprocess.CalledProcessError as e:
+        logging.critical(f"The error {e} was thrown when creating the original props file!")
+
+def write_needed_files(files, dir_path: Path, needed_keywords: list):
+    # Create output folder
+    os.makedirs(str(dir_path), exist_ok=True)
+    
+    # Download files containing keywords
+    props_filename = None
+    for file_info in files:
+        filename = file_info['name']
+        if any(keyword in filename.lower() for keyword in needed_keywords):
+            # Download file
+            file_response = requests.get(file_info['download_url'])
+            file_path = str(dir_path / filename)
+            with open(file_path, 'wb') as f:
+                f.write(file_response.content)
+            logging.info(f"Downloaded: {filename}")
+
+            if "props" in filename:
+                props_filename = filename
+                
+                # When downloading the props file, make sure to copy it onto an original_props!
+                create_original_props(dir_path, props_filename)
+
+    # Make sure to still get props_filename if no files are needed
+    if not needed_keywords:
+        props_filename
+        props_files = {item for item in dir_path.iterdir() if item.is_file()
+                       and "props" in item.name.lower() and "original" not in item.name.lower()}
+        assert len(props_files) == 1
+        props_filename = next(iter(props_files))
+        print(f"props filename found! {props_filename}")
+
+    return props_filename
+
+def reset_props_file(props_filename, dir_path):
+    # Copy the props file to reset any changes
+    if props_filename:
+        try:
+            props_path = Path(props_filename)
+            original_props_filename = dir_path / f"{props_path.stem}_original.json"
+            subprocess.run(["cp", original_props_filename, props_path])
+        except subprocess.CalledProcessError as e:
+            logging.critical(f"The error {e} was thrown when copying the original props file!")
+    else:
+        logging.critical(f"The props file which is necessary to configuration of fake backends was not found from the qiskit repository")
+
+def fetch_config_files(backend_name, exit_if_unavailable=True):
+    save_location = os.environ.get("BACKEND_CONFIGS_FOLDER") + backend_name
+    dir_path = Path(save_location)
+    needed_keywords = get_needed_files(dir_path)
+
+    # Get files from GitHub API
+    CURRENT_BRANCH = "stable/0.46"
+    latest_commit_sha = get_commit_sha_for_branch("Qiskit", "qiskit", CURRENT_BRANCH)
+    if latest_commit_sha is None:
+        if exit_if_unavailable:
+            raise Exception("The commit SHA was not found from the branch. Exiting because exit_if_unavailable is True")
+        else:
+            logging.error("Returning from download_config without downloading anything")
+            return None
+    
+    files = download_config_files(backend_name, latest_commit_sha)
+    if files:
+        props_filename = write_needed_files(files, dir_path, needed_keywords)
+    
+    # The props file is currently the only one that is configured
+    reset_props_file(props_filename, dir_path)
+    
+
+# Noise models not from backend functions below
         
 def custom_noise_model(num_qubits = 4, T1s = 50e3, T2s = 70e3, instruction_times: dict = None, overrotation_amount = np.pi/100, detuning_amount = np.pi/120):
 
@@ -296,107 +368,3 @@ def random_noise_model(num_qubits = 4, seed = 0):
 
     return noise_model
 
-# GPT function
-def get_commit_sha_for_branch(owner, repo, branch):
-    """Get the commit SHA for a branch with slashes in the name."""
-    encoded_branch = branch.replace('/', '%2F')
-    url = f"https://api.github.com/repos/{owner}/{repo}/git/refs/heads/{encoded_branch}"
-    response = requests.get(url)
-    if response.status_code == 200:
-        return response.json()['object']['sha']
-    else:
-        logging.critical(f"Branch not found: {response.status_code}")
-        return None
-
-def download_config(backend_name, exit_if_unavailable=True):
-    save_location = f"qiskit_backend_configs/{backend_name}"
-    dir_path = Path(save_location)
-    keywords = ['conf', 'defs', 'props']
-
-    if dir_path.exists():
-        for item in dir_path.iterdir():
-            needed_keywords = copy.copy(keywords)
-            if item.is_file():
-                for keyword in needed_keywords:
-                    if keyword in item.name.lower():
-                        needed_keywords.remove(keyword)
-                        continue
-                
-                if not needed_keywords:
-                    return
-
-
-    # Get files from GitHub API
-    latest_commit_sha = get_commit_sha_for_branch("Qiskit", "qiskit", "stable/0.46")
-    if latest_commit_sha is None:
-        if exit_if_unavailable:
-            raise Exception("The commit SHA was not found from the branch. Exiting because exit_if_unavailable is True")
-        else:
-            logging.critical("Returning from download_config without downloading anything")
-            return None
-    
-    url = f"https://api.github.com/repos/Qiskit/qiskit/contents/qiskit/providers/fake_provider/backends/{backend_name}?ref={latest_commit_sha}"
-    response = requests.get(url)
-    props_filename = None
-
-    if response.status_code != 200:
-        logging.error(f"Unable to find files for the backend {backend_name} from the url {url}.")
-        if exit_if_unavailable:
-            raise requests.exceptions.HTTPError(
-                f"HTTP: {response.status_code} for {url}"
-            )
-    else:
-        files = response.json()
-
-    
-        # Create output folder
-        os.makedirs(save_location, exist_ok=True)
-        
-        # Download files containing keywords
-        for file_info in files:
-            filename = file_info['name']
-            if any(keyword in filename.lower() for keyword in keywords):
-                # Download file
-                file_response = requests.get(file_info['download_url'])
-                with open(save_location + f"/{filename}", 'wb') as f:
-                    f.write(file_response.content)
-                logging.info(f"Downloaded: {filename}")
-
-                if "props" in filename:
-                    props_filename = filename
-    
-    # Still copy the props file even if url is not found
-
-    if props_filename:
-        try:
-            original_props_filename = save_location + "/" + props_filename.split(".")[0] + "_original.json"
-            subprocess.run(["cp", save_location + "/" + props_filename, original_props_filename])
-        except subprocess.CalledProcessError as e:
-            logging.critical(f"The error {e} was thrown when copying the original props file!")
-    else:
-        logging.critical(f"The props file which is necessary to configuration of fake backends was not found from the qiskit repository")
-        
-
-def get_fake_backend(backend_name):
-    download_config(backend_name)
-
-    match = next((item for item in EXISTING_MODELS if backend_name in item.lower()), None)
-    if match is None:
-        raise ValueError("The specified fake backend is not currently supported")
-
-    matching_class = EXISTING_MODELS[match]
-
-    target_dir = Path(inspect.getsourcefile(matching_class)).parent
-    source_dir = Path(f"./qiskit_backend_configs/{backend_name}/")
-
-    # CREATING SYMLINKS TO CONFIG FILES!
-    for item in source_dir.iterdir():
-        symlink_path = target_dir / item.name
-        
-        if symlink_path.exists():
-            continue
-        
-        symlink_path.symlink_to(item.absolute())
-
-    backend = matching_class()
-    return backend

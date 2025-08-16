@@ -403,9 +403,11 @@ if __name__ == "__main__":
     filepath = submitter.benchmark_path
 
     #OLD: num_qubits_list = [2, 3, 4, 5, 6, 7,]
-    num_qubits_list = [5, 8] # NEW!
+    from _helpers.helpers import get_num_qubits_list
+    num_qubits_list = get_num_qubits_list()
+    
     num_trials = 200
-    optimization_level = 1
+    optimization_level = 3
 
     # Uncomment the following lines if you are using a noisy simulator and would like to change the noise model
     # from qiskit_aer.noise import NoiseModel
@@ -442,7 +444,7 @@ if __name__ == "__main__":
         noisy_heavy_outputs_dict[n_qubits] = noisy_heavy_outputs
         mean_noisy_heavy_outputs.append(np.mean(noisy_heavy_outputs))
 
-        os.environ['PERF_VALUE'] = str(mean_noisy_heavy_outputs)
+        os.environ["PERF_VALUE"] = str(mean_noisy_heavy_outputs)
         
         plot_heavy_output_distribution(
             np.asarray(

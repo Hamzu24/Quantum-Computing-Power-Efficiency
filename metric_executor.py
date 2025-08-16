@@ -1,82 +1,71 @@
-import gc
-import time
 import _helpers.circuit_submitter
 import _helpers.enhanced_circuit_submitter
-from _helpers.backend_builders import log_info
 from copy import copy
 import runpy
 import json
 import matplotlib
 import argparse
-import os
 import datetime
 import logging
+import os
+from _helpers.helpers import set_up_logger, read_config, get_num_qubits_list, set_num_qubits_list
+from _helpers.constants import DEFAULT_PATH
+from _helpers.registry import submitter_registry
 
-def get_submitters(objects):
-    submitters = {}
-    devices_still_needed = copy(devices_needed)
+def run_metric(metric_path=DEFAULT_PATH):
+    runpy.run_path(metric_path, run_name="__main__")
+    
+    performance = os.environ.get('PERF_VALUE') 
+    print(f"Performance value: {performance}")
 
-    for obj in objects:
-        if isinstance(obj, _helpers.circuit_submitter.CircuitSubmitter):
-            if obj.device_name in devices_needed:
-                submitters[obj.device_name] = obj
-                if obj.device_name in devices_still_needed:
-                    devices_still_needed.remove(obj.device_name)
+    submitter = submitter_registry.get_submitter("noisy_sim")
+    print(f"submitter: {submitter}")
+    total_consumption, staggered_consumptions = submitter.get_power_consumption()
 
-    return submitters
+    total_consumption = sum(total_consumption.values())
+    consumption_dict = {"total_consumption": total_consumption, "staggered_consumptions": []}
+    print(f"total_consumption: {total_consumption}")
+    num_qubits_list = get_num_qubits_list()
+    for i, (cons, num_qb) in enumerate(zip(staggered_consumptions, num_qubits_list)):
+        print(f"{num_qb} qubit power consumption: {sum(cons.values())}")
+        consumption_dict["staggered_consumptions"].append(total_consumption)
+    
+    return {"performance": performance, "power_consumption": consumption_dict}
 
 if __name__ == "__main__":
-    DEFAULT_PATH = "tutorials/circuit_execution_quality_metrics/quantum_volume/quantum_volume.py"
-    devices_needed = ["noisy_sim"]
+    os.environ["CONFIG_PATH"] = "configs.json"
+    os.environ["HARDWARE_CONFIG_PATH"] = "qiskit_backend_configs/hardware_constants.json"
+    os.environ["BACKEND_CONFIGS_FOLDER"] = "qiskit_backend_configs/"
+    os.environ["SINGLE_RUN"] = "true"
 
     parser = argparse.ArgumentParser()
     parser.add_argument('path', nargs='?', default=DEFAULT_PATH, help='Optional path')
     parser.add_argument('-v', '--visual', action='store_true', help='Visual flag')
     parser.add_argument('--log', 
                     choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL', 'debug', 'info', 'error', 'critical'],
-                    default='INFO',
+                    default='WARNING',
                     help='Set the logging level')
     parser.add_argument('--log-file', 
+                    default=None,
                     help='Log to file instead of console')
     args = parser.parse_args()
 
     log_level = getattr(logging, args.log.upper())
-    logging_fmt='%(asctime)s | %(funcName)s:%(lineno)d | %(levelname)s | %(message)s'
-
-    if args.log_file:
-        logging.basicConfig(
-            filename=args.log_file,
-            level=log_level,
-            format=logging_fmt
-        )
-    else:
-        logging.basicConfig(
-            level=log_level,
-            format=logging_fmt
-        )
-
-    logging.getLogger('qiskit').setLevel(logging.WARNING)
-
-    metric_name = args.path.split('/')[-1].split('.')[0]
+    set_up_logger(log_level, args.log_file)
 
     if not args.visual:
         matplotlib.use('Agg')  # Use non-interactive backend
 
-    logging.info(f"""Now running the metric with the following settings:
+    metric_name = args.path.split('/')[-1].split('.')[0]
+
+    num_qubits_list = set_num_qubits_list()
+
+    print(f"""Now running the metric with the following settings:
         metric: {metric_name}
         visual mode: {args.visual}
         logging level: {log_level}
+        logging to file: {args.log_file}
+        number of qubits: {num_qubits_list}
          """) 
-    module_globals = runpy.run_path(args.path, run_name="__main__")
-    time.sleep(1)
-    log_info()
 
-    gc.collect()
-    objects = gc.get_objects()
-
-    submitters = get_submitters(objects)
-    total_consumption, staggered_consumptions = submitters['noisy_sim'].get_power_consumption()
-    print(f"perfomance: {os.environ.get('PERF_VALUE')}\n")
-    print(f"total power usage: {sum(total_consumption.values())}\n\n")
-    print(f"2 qubit power consumption: {sum(staggered_consumptions[0].values())}")
-    print(f"3 qubit power consumption: {sum(staggered_consumptions[1].values())}")
+    run_metric(args.path)

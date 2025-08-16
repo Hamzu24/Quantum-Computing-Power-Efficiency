@@ -165,8 +165,6 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-# HERE ONWARDS IS WHAT I ADDED
-
 qiskit_backend_configs/*
 !qiskit_backend_configs/hardware_constants.json
 hardware_runs/
