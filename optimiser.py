@@ -3,9 +3,10 @@ import argparse
 import logging
 import os
 import json
-from _helpers.helpers import read_config, set_up_logger, set_num_qubits_list
+from _helpers.helpers import read_config, set_up_logger, set_num_qubits_list, get_control_parameters
 from _helpers.constants import DEFAULT_PATH
 import matplotlib
+import matplotlib.pyplot as plt
 
 def optimise(metric_path: str):
     os.environ["SINGLE_RUN"] = "false"
@@ -16,12 +17,14 @@ def optimise(metric_path: str):
     if iters is None:
         iters = 50
 
-    matplotlib.use('Agg')  # Use non-interactive backend
     perfs = []
     cons = []
+    temps = []
     for i in range(0, iters):
         print(f"Runnning metric for iteration {i}")
         output = run_metric(metric_path)
+        control_parameters = get_control_parameters(config_data)
+        temps.append(control_parameters.get("temperature"))
 
         os.environ["iteration"] = str(int(os.environ.get("iteration")) + 1)
         perfs.append(output.get("performance"))
@@ -29,6 +32,11 @@ def optimise(metric_path: str):
         logging.info("-------------------------------------------------------------\n\n")
     
     print(f"perfs: {perfs}, cons: {cons}")
+    matplotlib.use('qtagg')
+    fig, ax = plt.subplots()
+    assert len(temps) == len(perfs)
+    ax.plot(temps, perfs)
+    plt.show()
 
 if __name__ == "__main__":
     os.environ["CONFIG_PATH"] = "configs.json"
@@ -37,7 +45,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument('path', nargs='?', help='Optional path', default=DEFAULT_PATH)
-    parser.add_argument('-v', '--visual', action='store_true', help='Visual flag. Not recommended')
+    parser.add_argument('-v', '--visual', action='store_true', help='Visual flag. Not recommended for the optimiser')
     parser.add_argument('--log', 
                     choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL', 'debug', 'info', 'error', 'critical'],
                     default='WARNING',
@@ -50,6 +58,8 @@ if __name__ == "__main__":
     log_level = getattr(logging, args.log.upper())
 
     set_up_logger(log_level, args.log_file)
+    if not args.visual:
+        matplotlib.use('Agg')  # Use non-interactive backend
 
     set_num_qubits_list()
     num_qubits_list = set_num_qubits_list()
