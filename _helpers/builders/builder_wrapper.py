@@ -19,7 +19,7 @@ class BuilderWrapper:
         
         builder_name = self.config["builder_class"]
         backend_config_folder = os.environ.get("BACKEND_CONFIGS_FOLDER")
-        filename = backend_config_folder + f"/{name}/props_{name}.json"
+        filename = backend_config_folder + f"{name}/props_{name}.json"
         self.json_manager = JsonManager(filename)
         print(builder_registry.list_builders())
         self.builder = builder_registry.get_builder(builder_name)(name, self.config, self.json_manager)

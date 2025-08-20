@@ -19,7 +19,7 @@
             "type": "fake_backend",
             "name": "perth",
             "control_parameters": {
-                "temperature": [[100, "mK"], [60, 10, "mK"]]
+                "temperature": [[60, "mK"], [60, 10, "mK"]]
             },
             "init_control_parameters": {
                 "temperature": [13, "mK"]

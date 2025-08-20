@@ -24,7 +24,71 @@ from _helpers.builders.builder_wrapper import BuilderWrapper
 import logging
 from _helpers.helpers import get_control_parameters, extract_from_json
 from _helpers.constants import EXISTING_MODELS, DEFAULT_INSTRUCTION_TIMES
-from _helpers.registry import download_registry
+
+# Main function
+def craft_noise_model(config: dict):
+    config_type = config.get("type")
+    if config_type is None:
+        raise ValueError("A noise model must have a type field to be valid!")
+
+    elif config_type == "fake_backend":
+        return nm_from_fake_backend(config)
+
+    elif config_type == "simple_nm":
+        num_qubits, T1s, T2s, instruction_times, overrotation_amount, detuning_amount = \
+            extract_from_json(config, {
+                "num_qubits": (4, {}),
+                "T1s": (50e3, {}),
+                "T2s": (70e3, {}),
+                "instruction_times": (DEFAULT_INSTRUCTION_TIMES, {}),
+            })
+        return custom_noise_model(num_qubits, T1s, T2s, instruction_times, overrotation_amount, detuning_amount)
+
+    elif config_type == "random_simple_nm":
+        num_qubits, seed = extract_from_json(config, {"num_qubits": (4, {}), "seed": (0, {"random": None})})
+        return random_noise_model(num_qubits, seed)
+    
+    return None
+        
+def nm_from_fake_backend(config):
+    backend_name = config.get("name")
+
+    exists = config_exists(backend_name)
+    fetch_config_files(backend_name, exit_if_unavailable=exists)
+
+    # Note that below I build the backend from the config files and get the backend class separately
+    matching_class = get_backend_class(config, backend_name)
+    create_backend_symlinks(config, matching_class)
+    build_backend(config, backend_name)
+
+    # Now, I translate the backend class into a noise model with the correct configuration from the config files
+    # The config files implicitly affect the backend
+    backend = matching_class()
+    noise_model = NoiseModel.from_backend(backend)
+    noise_model.name = config["name"]
+    return noise_model
+                
+def fetch_config_files(backend_name, exit_if_unavailable=True):
+    save_location = os.environ.get("BACKEND_CONFIGS_FOLDER") + backend_name
+    dir_path = Path(save_location)
+    needed_keywords = get_needed_files(dir_path)
+
+    # Get files from GitHub API
+    if needed_keywords:
+        CURRENT_BRANCH = "stable/0.46"
+        latest_commit_sha = get_commit_sha_for_branch("Qiskit", "qiskit", CURRENT_BRANCH)
+        if latest_commit_sha is None:
+            if exit_if_unavailable:
+                raise Exception("The commit SHA was not found from the branch. Exiting because exit_if_unavailable is True")
+            else:
+                logging.error("Returning from download_config without downloading anything")
+                return None
+    
+        files = download_github_backend_files(backend_name, latest_commit_sha)
+        write_needed_files(files, dir_path, needed_keywords)
+    
+    # The props file is currently the only one that is configured
+    reset_props_file(dir_path)
 
 def config_exists(backend_name):
     config_folder = os.environ.get("BACKEND_CONFIGS_FOLDER") + backend_name
@@ -64,51 +128,6 @@ def build_backend(config, backend_name):
     control_parameters = get_control_parameters(config)
     builder.build_backend(control_parameters)
 
-def nm_from_fake_backend(config):
-    backend_name = config.get("name")
-    already_downloaded = download_registry.has_downloaded(backend_name)
-
-    if not already_downloaded:
-        exists = config_exists(backend_name)
-        fetch_config_files(backend_name, exit_if_unavailable=exists)
-
-    # Note that below I build the backend from the config files and get the backend class separately
-    matching_class = get_backend_class(config, backend_name)
-    create_backend_symlinks(config, matching_class)
-    build_backend(config, backend_name)
-
-    # Now, I translate the backend class into a noise model with the correct configuration from the config files
-    # The config files implicitly affect the backend
-    backend = matching_class()
-    noise_model = NoiseModel.from_backend(backend)
-    noise_model.name = config["name"]
-    return noise_model
-                
-# Main function
-def craft_noise_model(config: dict):
-    config_type = config.get("type")
-    if config_type is None:
-        raise ValueError("A noise model must have a type field to be valid!")
-
-    elif config_type == "fake_backend":
-        return nm_from_fake_backend(config)
-
-    elif config_type == "simple_nm":
-        num_qubits, T1s, T2s, instruction_times, overrotation_amount, detuning_amount = \
-            extract_from_json(config, {
-                "num_qubits": (4, {}),
-                "T1s": (50e3, {}),
-                "T2s": (70e3, {}),
-                "instruction_times": (DEFAULT_INSTRUCTION_TIMES, {}),
-            })
-        return custom_noise_model(num_qubits, T1s, T2s, instruction_times, overrotation_amount, detuning_amount)
-
-    elif config_type == "random_simple_nm":
-        num_qubits, seed = extract_from_json(config, {"num_qubits": (4, {}), "seed": (0, {"random": None})})
-        return random_noise_model(num_qubits, seed)
-    
-    return None
-        
 # GPT function
 def get_commit_sha_for_branch(owner, repo, branch):
     """Get the commit SHA for a branch with slashes in the name."""
@@ -122,15 +141,26 @@ def get_commit_sha_for_branch(owner, repo, branch):
         return None
 
 def get_needed_files(dir_path: Path):
-    needed_keywords = {'conf', 'defs', 'props'}
+    needed_keywords = {'conf', 'defs', 'props', 'original'}
     if dir_path.exists():
         found_keywords = {keyword for item in dir_path.iterdir() if item.is_file()
                           for keyword in needed_keywords if keyword in item.name.lower()}
+
+        # temp below
+        # id = dir_path.iterdir()
+        # for i, item in enumerate(id):
+            # print(f"{i} item is: {item}")
+        #
         needed_keywords -= found_keywords
+
+    # Handle the edge case of props existing but not original
+    if 'original' in needed_keywords:
+        needed_keywords.add("props")
+        needed_keywords.remove("original")
 
     return needed_keywords
 
-def download_config_files(backend_name, commit_sha):
+def download_github_backend_files(backend_name, commit_sha):
     url = f"https://api.github.com/repos/Qiskit/qiskit/contents/qiskit/providers/fake_provider/backends/{backend_name}?ref={commit_sha}"
     response = requests.get(url)
 
@@ -147,9 +177,9 @@ def download_config_files(backend_name, commit_sha):
 
 def create_original_props(dir_path, props_filename):
     try:
-        props_path = Path(props_filename)
+        props_path = dir_path / Path(props_filename)
         original_props_filename = dir_path / f"{props_path.stem}_original.json"
-        subprocess.run(["cp", props_path, original_props_filename])
+        subprocess.run(["cp", str(props_path), str(original_props_filename)])
     except subprocess.CalledProcessError as e:
         logging.critical(f"The error {e} was thrown when creating the original props file!")
 
@@ -158,7 +188,6 @@ def write_needed_files(files, dir_path: Path, needed_keywords: list):
     os.makedirs(str(dir_path), exist_ok=True)
     
     # Download files containing keywords
-    props_filename = None
     for file_info in files:
         filename = file_info['name']
         if any(keyword in filename.lower() for keyword in needed_keywords):
@@ -170,56 +199,30 @@ def write_needed_files(files, dir_path: Path, needed_keywords: list):
             logging.info(f"Downloaded: {filename}")
 
             if "props" in filename:
-                props_filename = filename
-                
-                # When downloading the props file, make sure to copy it onto an original_props!
-                create_original_props(dir_path, props_filename)
+                create_original_props(dir_path, filename)
 
-    # Make sure to still get props_filename if no files are needed
-    if not needed_keywords:
-        props_filename
-        props_files = {item for item in dir_path.iterdir() if item.is_file()
-                       and "props" in item.name.lower() and "original" not in item.name.lower()}
-        assert len(props_files) == 1
-        props_filename = next(iter(props_files))
-        print(f"props filename found! {props_filename}")
-
+def get_props_filename(dir_path):
+    props_files = {item for item in dir_path.iterdir() if item.is_file()
+                   and "props" in item.name.lower() and "original" not in item.name.lower()}
+    if len(props_files) != 1:
+        raise FileNotFoundError("Could not isolate the props file in the directory. Please manually clean")
+    
+    props_filename = next(iter(props_files))
     return props_filename
 
-def reset_props_file(props_filename, dir_path):
+def reset_props_file(dir_path):
+    props_filename = get_props_filename(dir_path)
+    
     # Copy the props file to reset any changes
     if props_filename:
         try:
             props_path = Path(props_filename)
             original_props_filename = dir_path / f"{props_path.stem}_original.json"
-            subprocess.run(["cp", original_props_filename, props_path])
+            subprocess.run(["cp", str(original_props_filename), str(props_path)])
         except subprocess.CalledProcessError as e:
             logging.critical(f"The error {e} was thrown when copying the original props file!")
     else:
         logging.critical(f"The props file which is necessary to configuration of fake backends was not found from the qiskit repository")
-
-def fetch_config_files(backend_name, exit_if_unavailable=True):
-    save_location = os.environ.get("BACKEND_CONFIGS_FOLDER") + backend_name
-    dir_path = Path(save_location)
-    needed_keywords = get_needed_files(dir_path)
-
-    # Get files from GitHub API
-    CURRENT_BRANCH = "stable/0.46"
-    latest_commit_sha = get_commit_sha_for_branch("Qiskit", "qiskit", CURRENT_BRANCH)
-    if latest_commit_sha is None:
-        if exit_if_unavailable:
-            raise Exception("The commit SHA was not found from the branch. Exiting because exit_if_unavailable is True")
-        else:
-            logging.error("Returning from download_config without downloading anything")
-            return None
-    
-    files = download_config_files(backend_name, latest_commit_sha)
-    if files:
-        props_filename = write_needed_files(files, dir_path, needed_keywords)
-    
-    # The props file is currently the only one that is configured
-    reset_props_file(props_filename, dir_path)
-    
 
 # Noise models not from backend functions below
         

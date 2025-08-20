@@ -47,18 +47,3 @@ class OptimiserRegistry:
                 print(f"    {str(cur_builder)}: {opt}")
 
 optimiser_registry = OptimiserRegistry()
-
-class DownloadRegistry:
-    def __init__(self):
-        self.download_log = []
-    
-    def has_downloaded(self, name):
-        return any(log == name for log in self.download_log)
-    
-    def log_downloaded(self, name):
-        self.download_log.append(name)
-    
-    def list_download_log(self):
-        return self.download_log
-
-download_registry = DownloadRegistry()

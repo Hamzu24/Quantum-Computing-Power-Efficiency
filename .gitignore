@@ -168,4 +168,5 @@ cython_debug/
 qiskit_backend_configs/*
 !qiskit_backend_configs/hardware_constants.json
 hardware_runs/
-test_dir/
+testing_dir/
+logs/
