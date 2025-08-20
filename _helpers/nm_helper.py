@@ -106,6 +106,10 @@ def create_backend_symlinks(config, matching_class):
     source_dir = Path(os.environ.get("BACKEND_CONFIGS_FOLDER") + backend_name + "/")
 
     for item in source_dir.iterdir():
+        if "original" in item.name:
+            # No need to create symlinks to the original/copy files
+            continue
+
         symlink_path = target_dir / item.name
         
         if symlink_path.exists():

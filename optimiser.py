@@ -3,10 +3,11 @@ import argparse
 import logging
 import os
 import json
-from _helpers.helpers import read_config, set_up_logger, set_num_qubits_list, get_control_parameters
+from _helpers.helpers import read_config, set_up_logger, set_num_qubits_list, get_control_parameters, get_config_value
 from _helpers.constants import DEFAULT_PATH
 import matplotlib
 import matplotlib.pyplot as plt
+from _helpers.registry import control_parameter_registry
 
 def optimise(metric_path: str):
     os.environ["SINGLE_RUN"] = "false"
@@ -23,8 +24,11 @@ def optimise(metric_path: str):
     for i in range(0, iters):
         print(f"Runnning metric for iteration {i}")
         output = run_metric(metric_path)
-        control_parameters = get_control_parameters(config_data)
-        temps.append(control_parameters.get("temperature"))
+        control_parameters = control_parameter_registry.get_control_parameters()
+        print(f"cp: {control_parameters}")
+        temp = get_config_value(control_parameters, "temperature")
+        print(f"temp: {temp}")
+        temps.append(temp)
 
         os.environ["iteration"] = str(int(os.environ.get("iteration")) + 1)
         perfs.append(output.get("performance"))

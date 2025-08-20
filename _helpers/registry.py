@@ -47,3 +47,16 @@ class OptimiserRegistry:
                 print(f"    {str(cur_builder)}: {opt}")
 
 optimiser_registry = OptimiserRegistry()
+
+class ControlParameterRegistry():
+
+    def __init__(self):
+        self.control_parameters = {}
+
+    def get_control_parameters(self):
+        return self.control_parameters
+
+    def set_control_parameters(self, control_params: dict):
+        self.control_parameters = control_params
+
+control_parameter_registry = ControlParameterRegistry()

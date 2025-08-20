@@ -8,6 +8,7 @@ from copy import deepcopy
 from _helpers.helpers import get_config_value
 from _helpers.constants import HARDWARE_CONFIG_GROUPS
 from _helpers.builders.base import builder_registry
+from _helpers.registry import control_parameter_registry
 from _helpers.builders.default_builder import DefaultBuilder
 
 class BuilderWrapper:
@@ -54,6 +55,7 @@ class BuilderWrapper:
 
     
     def build_backend(self, control_parameters):
+        control_parameter_registry.set_control_parameters(control_parameters)
         self._build_qubits(control_parameters)
         self._build_gates(control_parameters)
         self.json_manager.write()

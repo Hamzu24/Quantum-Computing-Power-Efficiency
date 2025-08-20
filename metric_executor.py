@@ -15,7 +15,7 @@ from _helpers.registry import submitter_registry
 def run_metric(metric_path=DEFAULT_PATH):
     runpy.run_path(metric_path, run_name="__main__")
     
-    performance = os.environ.get('PERF_VALUE') 
+    performance = float(os.environ.get('PERF_VALUE')[1:-1])
     print(f"Performance value: {performance}")
 
     submitter = submitter_registry.get_submitter("noisy_sim")
