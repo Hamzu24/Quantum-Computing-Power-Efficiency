@@ -7,6 +7,7 @@ from qiskit_aer import AerSimulator, AerJob
 from qiskit_aer.noise import NoiseModel
 import numpy as np
 from _helpers.noise_model import custom_noise_model
+from _helpers.constants import SIMULATION_METHOD
 
 
 class QiskitTaskResultWrapper:
@@ -49,12 +50,21 @@ class QiskitTaskWrapper:
         self.id = task.job_id()
         self.shots = shots
         self.shot_noise = shot_noise
+        self._cached_result = None
 
     def result(self):
+        if self._cached_result is not None:
+            return self._cached_result
+
         if self.shot_noise:
-            return QiskitTaskResultWrapperWithShots(self.task, self.shots)
+            self._cached_result = QiskitTaskResultWrapperWithShots(self.task, self.shots)
         else:
-            return QiskitTaskResultWrapper(self.task, self.shots)
+            self._cached_result = QiskitTaskResultWrapper(self.task, self.shots)
+
+        # Clear job reference to free memory (contains large density matrices)
+        self.task = None
+
+        return self._cached_result
 
     def state(self):
         return "COMPLETED"
@@ -77,11 +87,11 @@ class SimWrapper:
         if noise_model is not None:
             self.noise_model = noise_model
             self.sim = self.backend(
-                method="density_matrix", noise_model=self.noise_model
+                method=SIMULATION_METHOD, noise_model=self.noise_model, device="GPU", blocking_qubits=11
             )
         else:
             self.noise_model = None
-            self.sim = self.backend(method="density_matrix")
+            self.sim = self.backend(method='statevector', device="GPU")
 
     def _remove_measurement_and_add_dm_save(self, circ):
         index_to_delete = []

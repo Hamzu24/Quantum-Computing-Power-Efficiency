@@ -56,23 +56,23 @@ class ConfigTracker:
         avg_T2 = 0
         num_qb = 0
         for info in self.qb_config_infos:
-            logging.info(info["adjs"])
+            logging.debug(info["adjs"])
             avg_T1 += info["adjs"]["T1"]
             avg_T2 += info["adjs"]["T2"]
             num_qb += 1
 
         avg_T1 /= num_qb
         avg_T2 /= num_qb
-        logging.info(f"avg T1 adj: {avg_T1}")
-        logging.info(f"avg T2 adj: {avg_T2}")
+        logging.debug(f"avg T1 adj: {avg_T1}")
+        logging.debug(f"avg T2 adj: {avg_T2}")
 
-        logging.info("\n\n")
+        logging.debug("\n\n")
         avg_ge = 0
         num_gates = 0
         for info in self.gate_config_infos:
-            logging.info(info["adjs"])
+            logging.debug(info["adjs"])
             avg_ge += info["adjs"]
             num_gates += 1
 
         avg_ge /= num_gates
-        logging.info(f"avg ge adj: {avg_ge}")
+        logging.debug(f"avg ge adj: {avg_ge}")

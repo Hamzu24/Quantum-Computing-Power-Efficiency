@@ -1,13 +1,16 @@
 from qiskit_ibm_runtime.fake_provider import (
     FakeAuckland, FakeGeneva, FakeKolkataV2, FakeManilaV2,
     FakeMontrealV2, FakeOslo, FakePerth, FakePrague,
-    FakeSherbrooke, FakeTokyo
+    FakeSherbrooke, FakeTokyo, FakeWashingtonV2, FakeBrooklynV2,
+    FakeManhattanV2
 )
 
 DEFAULT_PATH = "tutorials/circuit_execution_quality_metrics/quantum_volume/quantum_volume.py"
 
+SIMULATION_METHOD = "density_matrix"
+
 HARDWARE_CONFIG_GROUPS = {
-    "modern": ("perth", "default"),
+    "modern": ("perth", "default", "sherbrooke"),
     "intermediate": (),
     "legacy": ("oslo")
 }
@@ -22,7 +25,10 @@ EXISTING_MODELS = {
     "fakePerth": FakePerth,
     "fakePrague": FakePrague,
     "fakeSherbrooke": FakeSherbrooke,
-    "fakeTokyo": FakeTokyo
+    "fakeTokyo": FakeTokyo,
+    "fakeWashingtonV2": FakeWashingtonV2,
+    "fakeBrooklynV2": FakeBrooklynV2,
+    "fakeManhattanV2": FakeManhattanV2
 }
 
 DEFAULT_INSTRUCTION_TIMES = {
@@ -60,3 +66,5 @@ SI_PREFIXES = {
     'u': 1e-6,   # micro (alternative 'u' for systems that don't support μ)
     'n': 1e-9,   # nano
 }
+
+NoiselessSimBasisGates = ['u1', 'u2', 'u3', 'u', 'p', 'r', 'rx', 'ry', 'rz', 'id', 'x', 'y', 'z', 'h', 's', 'sdg', 't', 'tdg', 'swap', 'cx', 'cy', 'cz', 'ch', 'cp', 'cu', 'cu1', 'cu2', 'cu3', 'crx', 'cry', 'crz', 'ccx', 'cswap', 'mcx', 'mcy', 'mcz', 'mcp', 'mcu1', 'mcu2', 'mcu3', 'mcswap', 'unitary', 'diagonal', 'multiplexer', 'initialize', 'delay', 'pauli']

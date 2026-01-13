@@ -16,10 +16,10 @@ from _helpers.helpers import read_config
 from _helpers.registry import submitter_registry
 import os
 import logging
+from _helpers.constants import NoiselessSimBasisGates, SIMULATION_METHOD
 
 class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
-    SIMULATION_METHOD="density_matrix"
-    
+
     def __init__(self, benchmark_name: str, device_name: str = "noisy_sim"):
         super().__init__(benchmark_name, device_name)
         
@@ -51,12 +51,13 @@ class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
         self.backend.noise_model = noise_model_instance
         self.backend.device.noise_model = noise_model_instance
         self.backend.device.sim = self.backend.device.backend(
-            method=CircuitSubmitter.SIMULATION_METHOD, noise_model=noise_model_instance
+            method=SIMULATION_METHOD, noise_model=noise_model_instance, device='GPU'
         )
 
     def _setup_noise_model(self, configs, device_name):
+        self.nm_class = None
+
         noise_models = configs.get("noise_models")
-        
         noisy_devices = ["noisy_sim", "noisy_sim_with_shots"]
         if device_name not in noisy_devices:
             logging.debug(f"You are not using a noisy device simulator. The backend being used is {self.backend}")
@@ -66,9 +67,11 @@ class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
             noise_model_specs = noise_models.get(device_name)
         elif noise_models.get("default_noise_model") is not None:
             noise_model_specs = noise_models.get("default_noise_model")
+        print(f"\n\nnoise model specs: {noise_model_specs}")
 
         if noise_model_specs:
-            noise_model_instance = craft_noise_model(noise_model_specs)
+            noise_model_instance, nm_class = craft_noise_model(noise_model_specs)
+            self.nm_class = nm_class
             self._apply_noise_model(noise_model_instance)
             return
         
@@ -110,26 +113,30 @@ class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
     def submit_circuits(self, shots: int, verbatim: bool = True, skip_asking: bool = False, skip_transpilation: bool = False, print_summary: bool = True, braket_circuits: list = None, qasm_strs: list[str] = None, qasm_paths: list[str] = None, inputs: dict[str, float] = None) -> Union[list[AwsQuantumTask], list[LocalQuantumTask]]:
         tasks = super().submit_circuits(shots, verbatim, skip_asking, skip_transpilation, print_summary, braket_circuits, qasm_strs, qasm_paths, inputs)
 
-        circuits = self._get_circuits_from_tasks(tasks)
-
-        if self.tracking_number <= 0:
-            return tasks
-
-        self._populate_gate_counter(self.total_gates, circuits)
-        if self.tracking_number <= 1:
-            return tasks
-
-        if qasm_strs is not None:
-            has_a_measurement = self._has_a_measurement(qasm_strs, "qasm_strs")
-        elif qasm_paths is not None:
-            has_a_measurement = self._has_a_measurement(qasm_paths, "qasm_paths")
-        else:
-            has_a_measurement = self._has_a_measurement(braket_circuits, "braket_circuits")
-        
-        if has_a_measurement:
-            self.gate_history.append(deepcopy(self.total_gates))
-
+        # Gate counting disabled to prevent memory leaks
+        # To re-enable, uncomment the code below
         return tasks
+
+        # circuits = self._get_circuits_from_tasks(tasks)
+        #
+        # if self.tracking_number <= 0:
+        #     return tasks
+        #
+        # self._populate_gate_counter(self.total_gates, circuits)
+        # if self.tracking_number <= 1:
+        #     return tasks
+        #
+        # if qasm_strs is not None:
+        #     has_a_measurement = self._has_a_measurement(qasm_strs, "qasm_strs")
+        # elif qasm_paths is not None:
+        #     has_a_measurement = self._has_a_measurement(qasm_paths, "qasm_paths")
+        # else:
+        #     has_a_measurement = self._has_a_measurement(braket_circuits, "braket_circuits")
+        #
+        # if has_a_measurement:
+        #     self.gate_history.append(deepcopy(self.total_gates))
+        #
+        # return tasks
 
     def get_power_consumption(self) -> Tuple[Counter, list[Counter]]:
         total_consumption = self._calculate_power_consumption(self.total_gates)
@@ -213,5 +220,15 @@ class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
             consumption[operation] += count*operation_cost
 
         return consumption
+
+    def get_basis_gates(self):
+        if self.nm_class is None:
+            return NoiselessSimBasisGates
+
+        if self.nm_class.version == 2:
+            return self.nm_class.target.operation_names
+
+        # Older qiskit fake backend classes have different properties
+        return self.nm_class.configuration().basis_gates
 
 _helpers.circuit_submitter.CircuitSubmitter = CircuitSubmitter

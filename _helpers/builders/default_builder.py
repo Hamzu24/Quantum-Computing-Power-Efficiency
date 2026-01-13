@@ -182,7 +182,7 @@ class DefaultBuilder:
         else:
             raise ValueError(f"Invalid parameter type of {parameter} when trying to calculate a qubit parameter error")
 
-        logging.info(f"calculated_{parameter}: {calculated_parameter} at temperature {T}")
+        logging.debug(f"calculated_{parameter}: {calculated_parameter} at temperature {T}")
         if type == "ratio":
             error =     actual_parameter / calculated_parameter
         elif type == "square":
@@ -191,7 +191,7 @@ class DefaultBuilder:
             error = abs(calculated_parameter - actual_parameter) / abs(actual_parameter)
         else:
             raise ValueError(f"Invalid error type of {type} when trying to calculate a qubit error for parameter {parameter}")
-        logging.info(f"error (of type {type}): {error}")
+        logging.debug(f"error (of type {type}): {error}")
 
         if override_config is not None:
             self.config = original_config
@@ -199,7 +199,7 @@ class DefaultBuilder:
         return error, actual_parameter, calculated_parameter
 
     def calculate_qb_config(self, control_parameters: dict, qb_path: str):
-        logging.info(f"Calculating a qb config now\n")
+        logging.debug(f"Calculating a qb config now\n")
         adj_T1, actual_T1, calculated_T1 = self.calculate_parameter_error(self.init_T, qb_path, "ratio", "T1")
         adj_T2, actual_T2, calculated_T2 = self.calculate_parameter_error(self.init_T, qb_path, "ratio", "T2")
 
@@ -207,18 +207,18 @@ class DefaultBuilder:
         frequency = self.json_manager.find_value_with_units("frequency", qb_path)
 
         T1 = self.T1(T, frequency) * adj_T1
-        logging.info(f"working_T1: {T1} at temperature {T}")
+        logging.debug(f"working_T1: {T1} at temperature {T}")
         T2 = self.T2(T, frequency) * adj_T2
-        logging.info(f"working_T2: {T2} at temperature {T}")
+        logging.debug(f"working_T2: {T2} at temperature {T}")
 
         qb_config = {"T1": T1, "T2": T2}
-        logging.info(f"ending qb calculations with the following config: {qb_config}")
+        logging.debug(f"ending qb calculations with the following config: {qb_config}")
 
         self.config_tracker.add_config({"config": qb_config, "actual": {"T1": actual_T1, "T2": actual_T2}, "calculated": {"T1": calculated_T1, "T2": calculated_T2}, "adjs": {"T1": adj_T1, "T2": adj_T2}}, "qb")
         return qb_config
     
     def calculate_gate_config(self, control_parameters: dict, gate_path: str):
-        logging.info(f"Calculating a gate config now\n")
+        logging.debug(f"Calculating a gate config now\n")
         gate_param_path = gate_path + "parameters."
 
         relevant_qubits = self.json_manager.resolve(gate_path + "qubits")
@@ -233,12 +233,12 @@ class DefaultBuilder:
 
         actual_gate_error = self.json_manager.find_value_with_units("gate_error", gate_param_path)
         gate_length = self.json_manager.find_value_with_units("gate_length", gate_param_path)
-        logging.info(f"gate_length: {gate_length}")
+        logging.debug(f"gate_length: {gate_length}")
 
         calculated_error = 1 - self.F_N(self.init_T, N, gate_length, avg_frequency)
         if actual_gate_error:
             adjustement = calculated_error - actual_gate_error
-            logging.info(f"for initial temperature of {self.init_T}:\n actual_error: {actual_gate_error}, calculated_error: {calculated_error}, gate adjustement: {adjustement}")
+            logging.debug(f"for initial temperature of {self.init_T}:\n actual_error: {actual_gate_error}, calculated_error: {calculated_error}, gate adjustement: {adjustement}")
 
         working_T = get_config_value(control_parameters, "temperature")
             
@@ -246,8 +246,8 @@ class DefaultBuilder:
             working_gate_error = max(0, min(1, (1-self.F_N(working_T, N, gate_length, avg_frequency)) - adjustement))
         else:
             working_gate_error = None
-        logging.info(f"working_gate_error: {working_gate_error} at temperature {working_T}")
-        logging.info(f"ending gate calculations with the following config: gate_error: {working_gate_error}")
+        logging.debug(f"working_gate_error: {working_gate_error} at temperature {working_T}")
+        logging.debug(f"ending gate calculations with the following config: gate_error: {working_gate_error}")
 
         gate_config = {"gate_error": working_gate_error}
         if actual_gate_error:
@@ -273,20 +273,20 @@ class DefaultBuilder:
             self.config = deepcopy(existing_optimisation)
             return
             
-        logging.info("\nNow optimising y0")
-        optimiser_y0 = lambda cur_y0: logging.info(f"now trying y: {cur_y0}") or self.total_init_parameter_error({"y0": cur_y0}, "T1")
+        logging.debug("\nNow optimising y0")
+        optimiser_y0 = lambda cur_y0: logging.debug(f"now trying y: {cur_y0}") or self.total_init_parameter_error({"y0": cur_y0}, "T1")
         res = minimize_scalar(optimiser_y0, method='brent', options={'maxiter': 100, 'xtol': 0.0001})
         optimal_y0 = res.x
-        logging.info(f"optimal y0 was found to be {optimal_y0}")
+        logging.debug(f"optimal y0 was found to be {optimal_y0}")
         self.config["y0"] = optimal_y0
 
-        logging.info("\nNow optimising y_phi_b")
-        optimiser_y_phi_b = lambda cur_y_phi_b: logging.info(f"now trying y_phi_b: {cur_y_phi_b}") or self.total_init_parameter_error({"gamma_psi_base": cur_y_phi_b}, "T2")
+        logging.debug("\nNow optimising y_phi_b")
+        optimiser_y_phi_b = lambda cur_y_phi_b: logging.debug(f"now trying y_phi_b: {cur_y_phi_b}") or self.total_init_parameter_error({"gamma_psi_base": cur_y_phi_b}, "T2")
         res = minimize_scalar(optimiser_y_phi_b, options={'maxiter': 100, 'xtol': 0.0001})
         optimal_y_phi_b = res.x
-        logging.info(f"optimal y_phi_b was found to be {optimal_y_phi_b}")
+        logging.debug(f"optimal y_phi_b was found to be {optimal_y_phi_b}")
         self.config["gamma_psi_base"] = optimal_y_phi_b
-        logging.info("\nSucessfully optimised both parameters\n")
+        logging.debug("\nSucessfully optimised both parameters\n")
 
         optimiser_registry.store_optimisation(self.name, self.__class__, self.config)
 

@@ -1,0 +1,7 @@
+{
+        "exclude": [
+                "qiskit_backend_configs/",
+                "logs/",
+                "hardware_runs/"
+        ],
+}

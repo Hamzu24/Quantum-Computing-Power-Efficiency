@@ -42,11 +42,11 @@ def craft_noise_model(config: dict):
                 "T2s": (70e3, {}),
                 "instruction_times": (DEFAULT_INSTRUCTION_TIMES, {}),
             })
-        return custom_noise_model(num_qubits, T1s, T2s, instruction_times, overrotation_amount, detuning_amount)
+        return custom_noise_model(num_qubits, T1s, T2s, instruction_times, overrotation_amount, detuning_amount), None
 
     elif config_type == "random_simple_nm":
         num_qubits, seed = extract_from_json(config, {"num_qubits": (4, {}), "seed": (0, {"random": None})})
-        return random_noise_model(num_qubits, seed)
+        return random_noise_model(num_qubits, seed), None
     
     return None
         
@@ -66,7 +66,7 @@ def nm_from_fake_backend(config):
     backend = matching_class()
     noise_model = NoiseModel.from_backend(backend)
     noise_model.name = config["name"]
-    return noise_model
+    return noise_model, backend
                 
 def fetch_config_files(backend_name, exit_if_unavailable=True):
     save_location = os.environ.get("BACKEND_CONFIGS_FOLDER") + backend_name
@@ -74,18 +74,18 @@ def fetch_config_files(backend_name, exit_if_unavailable=True):
     needed_keywords = get_needed_files(dir_path)
 
     # Get files from GitHub API
-    if needed_keywords:
-        CURRENT_BRANCH = "stable/0.46"
-        latest_commit_sha = get_commit_sha_for_branch("Qiskit", "qiskit", CURRENT_BRANCH)
-        if latest_commit_sha is None:
-            if exit_if_unavailable:
-                raise Exception("The commit SHA was not found from the branch. Exiting because exit_if_unavailable is True")
-            else:
-                logging.error("Returning from download_config without downloading anything")
-                return None
-    
-        files = download_github_backend_files(backend_name, latest_commit_sha)
-        write_needed_files(files, dir_path, needed_keywords)
+    #if needed_keywords:
+    #    CURRENT_BRANCH = "stable/0.46"
+    #    latest_commit_sha = get_commit_sha_for_branch("Qiskit", "qiskit", CURRENT_BRANCH)
+    #    if latest_commit_sha is None:
+    #        if exit_if_unavailable:
+    #            raise Exception("The commit SHA was not found from the branch. Exiting because exit_if_unavailable is True")
+    #        else:
+    #            logging.error("Returning from download_config without downloading anything")
+    #            return None
+    #
+    #    files = download_github_backend_files(backend_name, latest_commit_sha)
+    #    write_needed_files(files, dir_path, needed_keywords)
     
     # The props file is currently the only one that is configured
     reset_props_file(dir_path)

@@ -16,6 +16,7 @@ from pathlib import Path
 from datetime import datetime
 import time
 import json
+import gc
 
 
 class CircuitSubmitter():
@@ -154,7 +155,9 @@ class CircuitSubmitter():
             
             elif self.device_name in ("noisy_sim", "noisy_sim_with_shots"):
                 # Don't convert to braket circuits for running on qiskit AerSimulator
-                circuits = qiskit.transpile([c for c in circuits], basis_gates = self.backend.device.noise_model.basis_gates)
+                optimization = int(os.environ.get("CIRCUIT_OPTIMIZATION"))
+                basis_gates = self.backend.get_basis_gates()
+                circuits=qiskit.transpile([c for c in circuits], basis_gates=basis_gates, optimization_level=optimization)
             
             elif self.device_name == "noiseless_sim":
                 
@@ -169,7 +172,7 @@ class CircuitSubmitter():
                     if qasm_strs is None:
                         raise ValueError("To skip transpilation you must provide qasm_strs")
                 circuits = braket_circuits
-            if self.device_name == "noisy_sim" or "noisy_sim_with_shots":
+            if self.device_name == "noisy_sim" or self.device_name == "noisy_sim_with_shots":
                 if qasm_strs is not None:
                     circuits = [QuantumCircuit.from_qasm_str(string) for string in qasm_strs]
 
@@ -251,6 +254,11 @@ class CircuitSubmitter():
             with open(self.circuits_path + f"/{task.id.replace('/', '=').replace(':', '_')}/results.json", "w+") as f:
                 json.dump(task.result(), f, indent=4, default=lambda o: str(o.tolist()) if isinstance(o, np.ndarray) else o.__dict__)
         all_counts = [task.result().measurement_counts for task in tasks]
+
+        # Clear tasks list to free memory
+        self.tasks = []
+        gc.collect()
+
         return all_counts
     
     def convert_counts_to_qiskit(self, counts: dict):

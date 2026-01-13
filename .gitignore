@@ -170,3 +170,6 @@ qiskit_backend_configs/*
 hardware_runs/
 testing_dir/
 logs/
+builds/
+CLAUDE.md
+images/

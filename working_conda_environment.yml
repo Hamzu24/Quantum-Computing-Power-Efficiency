@@ -1,4 +1,4 @@
-name: conda_env_metrics
+name: conda_env_metrics_2
 channels:
   - conda-forge
   - pkgs/main

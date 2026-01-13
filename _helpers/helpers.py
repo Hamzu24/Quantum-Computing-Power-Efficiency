@@ -91,32 +91,49 @@ def extract_from_json(json_dict, values: dict[str, tuple[Any, dict[Any, Any]]], 
 def get_unit_multiplier(unit: str):
     if len(unit) == 0:
         return None
+    if len(unit) == 1:
+        return 1
 
     return SI_PREFIXES.get(unit[0])
 
 def get_config_value(config: dict, name: str):
-    val, unit = config.get(name)
+    result = config.get(name)
+    if result is None:
+        return None
+
+    val, unit = result
     multiplier = get_unit_multiplier(unit)
     return val * multiplier
 
-def get_num_qubits_list():
+def get_num_qubits():
     if os.environ.get("NUM_QUBITS") is not None:
         try:
-            num_qubits_list = [int(n) for n in os.environ.get("NUM_QUBITS").split(",")]
+            num_qubits = int(os.environ.get("NUM_QUBITS"))
         except ValueError as e:
             logging.error("Unable to parse a list of qubits from the environment variable. Falling back on the default of [5]")
-            num_qubits_list = [5]
+            num_qubits = 5
     else:
-        num_qubits_list = [5]
+        num_qubits = 5
 
-    return num_qubits_list
+    return num_qubits
 
 def set_num_qubits_list():
     config_data = read_config()
-    num_qubits_list = config_data.get("num_qubits")
+    num_qubits_list = str(config_data.get("num_qubits"))
     if num_qubits_list is None:
         logging.error("No number of qubits specified for the simulation. Running with a default of 5")
-        num_qubits_list = 5
+        num_qubits_list = "5"
     
     os.environ["NUM_QUBITS"] = num_qubits_list
+    logging.info(f"\n\n\nSet environ variable NUM_QUBITS to: {num_qubits_list}")
     return num_qubits_list
+
+def set_circuit_optimisation():
+    config_data = read_config()
+    circuit_optimisation_level = config_data.get("circuit_optimisation_level")
+    if circuit_optimisation_level is None:
+        logging.error("No circuit optimisaiton level set. Running with a default of 1")
+        circuit_optimisation_level = 1
+
+    os.environ["CIRCUIT_OPTIMIZATION"] = str(circuit_optimisation_level)
+    return circuit_optimisation_level

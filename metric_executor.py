@@ -8,11 +8,11 @@ import argparse
 import datetime
 import logging
 import os
-from _helpers.helpers import set_up_logger, read_config, get_num_qubits_list, set_num_qubits_list
+from _helpers.helpers import set_up_logger, read_config, get_num_qubits, set_num_qubits_list, set_circuit_optimisation
 from _helpers.constants import DEFAULT_PATH
 from _helpers.registry import submitter_registry
 
-def run_metric(metric_path=DEFAULT_PATH):
+def run_metric(metric_path=DEFAULT_PATH, calculate_consumption=True):
     runpy.run_path(metric_path, run_name="__main__")
     
     performance = float(os.environ.get('PERF_VALUE')[1:-1])
@@ -20,24 +20,27 @@ def run_metric(metric_path=DEFAULT_PATH):
 
     submitter = submitter_registry.get_submitter("noisy_sim")
     print(f"submitter: {submitter}")
-    total_consumption, staggered_consumptions = submitter.get_power_consumption()
+    if calculate_consumption:
+        total_consumption, staggered_consumptions = submitter.get_power_consumption()
 
-    total_consumption = sum(total_consumption.values())
-    consumption_dict = {"total_consumption": total_consumption, "staggered_consumptions": []}
-    print(f"total_consumption: {total_consumption}")
-    num_qubits_list = get_num_qubits_list()
-    for i, (cons, num_qb) in enumerate(zip(staggered_consumptions, num_qubits_list)):
-        print(f"{num_qb} qubit power consumption: {sum(cons.values())}")
-        consumption_dict["staggered_consumptions"].append(total_consumption)
+        total_consumption = sum(total_consumption.values())
+        consumption_dict = {"total_consumption": total_consumption, "staggered_consumptions": []}
+        print(f"total_consumption: {total_consumption}")
+        num_qubits_list = get_num_qubits()
+        # NEED TO FIX BELOW, INVALID CODE
+        for i, (cons, num_qb) in enumerate(zip(staggered_consumptions, num_qubits_list)):
+            print(f"{num_qb} qubit power consumption: {sum(cons.values())}")
+            consumption_dict["staggered_consumptions"].append(total_consumption)
     
-    return {"performance": performance, "power_consumption": consumption_dict}
+        return {"performance": performance, "power_consumption": consumption_dict}
+    else:
+        return {"performance": performance}
 
 if __name__ == "__main__":
     os.environ["CONFIG_PATH"] = "configs.json"
     os.environ["HARDWARE_CONFIG_PATH"] = "qiskit_backend_configs/hardware_constants.json"
     os.environ["BACKEND_CONFIGS_FOLDER"] = "qiskit_backend_configs/"
     os.environ["SINGLE_RUN"] = "true"
-
     parser = argparse.ArgumentParser()
     parser.add_argument('path', nargs='?', default=DEFAULT_PATH, help='Optional path')
     parser.add_argument('-v', '--visual', action='store_true', help='Visual flag')
@@ -59,6 +62,7 @@ if __name__ == "__main__":
     metric_name = args.path.split('/')[-1].split('.')[0]
 
     num_qubits_list = set_num_qubits_list()
+    set_circuit_optimisation()
 
     print(f"""Now running the metric with the following settings:
         metric: {metric_name}

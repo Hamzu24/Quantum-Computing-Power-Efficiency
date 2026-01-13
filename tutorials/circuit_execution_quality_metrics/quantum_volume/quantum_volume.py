@@ -49,19 +49,8 @@ def haar_measure(n):
     rand_mat = random_complex_matrix(n)
     q, r = np.linalg.qr(rand_mat)
     d = np.diagonal(r)
-    d_normed = d / np.absolute(d)
-    return np.multiply(q, d_normed, q)
-
-
-def find_active_qubits(circuit):
-
-    dag = circuit_to_dag(circuit)
-    active_qubits = [
-        qubit.index for qubit in circuit.qubits if qubit not in dag.idle_wires()
-    ]
-
-    return active_qubits
-
+    d_normed = d / np.abs(d)
+    return q * d_normed
 
 def apply_su4_layer(qc, num_qubits):
     even_num_qubits = int(np.floor(num_qubits / 2) * 2)
@@ -108,21 +97,6 @@ def qiskit_counts_to_sorted_array(counts):
     sorted_bit_strings = sorted_counts_array[:, 0][probs_ascending_order]
     return sorted_probs, sorted_bit_strings
 
-
-def get_heavy_outputs(num_qubits, sorted_output_array):
-    output_strings = np.asarray(
-        [f"{x:0{num_qubits}b}" for x in range(sorted_output_array.shape[0])]
-    )
-    heavy_output_strings = output_strings[
-        np.where(sorted_output_array > np.median(sorted_output_array))
-    ]
-    prob_above_median = sorted_output_array[
-        sorted_output_array > np.median(sorted_output_array)
-    ]
-    heavy_output_prob = np.sum(prob_above_median)
-    return heavy_output_strings, prob_above_median, heavy_output_prob
-
-
 def qv_circuit(num_qubits=5, print_circuit=True):
     qc = qiskit.QuantumCircuit(num_qubits)
     for _ in range(num_qubits):
@@ -132,76 +106,6 @@ def qv_circuit(num_qubits=5, print_circuit=True):
         print(qc)
 
     return qc
-
-
-def get_counts(
-    qc,
-    simulator,
-    shots=5000,
-    angle=None,
-    optimization_level=1,
-    qc_id=None,
-    sim_name=None,
-):
-    circ = qiskit.transpile(
-        qc,
-        simulator,
-        optimization_level=optimization_level,
-        basis_gates=["rx", "ry", "rz", "cx"],
-    )
-
-    num_qubits = qc.num_qubits
-
-    CIRC_DATA_PATH = os.path.join(PATH, sim_name, "circ_data")
-    CIRC_DIAGRAM_PATH = os.path.join(PATH, sim_name, "circ_diagrams")
-    os.makedirs(CIRC_DATA_PATH, exist_ok=True)
-    os.makedirs(CIRC_DIAGRAM_PATH, exist_ok=True)
-    if qc_id:
-        # print('Depth: ', circ.depth())
-        num_cx_gates = 0
-        for i, op in enumerate(circ.data):
-            if type(op[0]) is qiskit.circuit.library.standard_gates.x.CXGate:
-                num_cx_gates += 1
-        with open(
-            os.path.join(CIRC_DATA_PATH, f"circ_data_vol_{num_qubits}.txt"), "a+"
-        ) as f:
-            f.write(
-                f"{num_qubits},{optimization_level},{num_cx_gates},{circ.depth()},{str(qc_id)}\n"
-            )
-        circ.qasm(filename=os.path.join(CIRC_DIAGRAM_PATH, str(qc_id)))
-
-    result = simulator.run(circ, shots=shots).result()
-    counts = result.get_counts(circ)
-    return counts
-
-
-def get_ideal_counts(qc_ideal, optimization_level=1):
-    qc_id = uuid.uuid4()
-    return get_counts(
-        qc_ideal,
-        ideal_simulator,
-        optimization_level=optimization_level,
-        qc_id=f"ideal{str(qc_id)}",
-        sim_name="ideal",
-    )
-
-
-def get_noisy_and_ideal_counts(qc_ideal, qc_noisy, noisy_sim, optimization_level=1):
-    qc_id = uuid.uuid4()
-    return get_counts(
-        qc_ideal,
-        ideal_simulator,
-        optimization_level=optimization_level,
-        qc_id=f"ideal{str(qc_id)}",
-        sim_name=sim_name,
-    ), get_counts(
-        qc_noisy,
-        noisy_sim,
-        optimization_level=optimization_level,
-        qc_id=f"noisy{str(qc_id)}",
-        sim_name=sim_name,
-    )
-
 
 def print_heavy_outputs(heavy_outputs_strings, heavy_output_probs, prob_heavy_output):
     print("State   Prob")
@@ -242,7 +146,7 @@ def plot_heavy_output_distribution(
         )
     if show_plot:
         plt.show()
-    # plt.clf()
+    plt.close('all')
 
 
 def plot_average_heavy_output(
@@ -309,91 +213,95 @@ def plot_average_heavy_output(
         )
     if show_plot:
         plt.show()
-    # plt.clf()
-
-
-def qv_trial(vol, noisy_sim, optimization_level=1):
-    qc_ideal = qv_circuit(vol, print_circuit=False)
-    qc_noisy = qc_ideal.copy()
-    ideal_counts, noisy_counts = get_noisy_and_ideal_counts(
-        qc_ideal, qc_noisy, noisy_sim, optimization_level=optimization_level
-    )
-
-    sorted_ideal_prob_array, bitsrings = qiskit_counts_to_sorted_array(ideal_counts)
-    noisy_prob_array = qiskit_counts_to_probs(noisy_counts)
-    sorted_noisy_prob_array = noisy_prob_array[bitsrings]
-    (
-        ideal_heavy_outputs_strings,
-        ideal_heavy_output_probs,
-        ideal_prob_heavy_output,
-    ) = get_heavy_outputs(vol, sorted_ideal_prob_array)
-    (
-        noisy_heavy_outputs_strings,
-        noisy_heavy_output_probs,
-        noisy_prob_heavy_output,
-    ) = get_heavy_outputs(vol, sorted_noisy_prob_array)
-    return ideal_prob_heavy_output, noisy_prob_heavy_output
-
-
-def generate_qv_circuits(num_qubit_list, num_trials=100, optimization_level=1):
-    qc_list = {}
-    for num_qubits in num_qubit_list:
-        qc_list[num_qubits] = []
-
-        submitter_noiseless = CircuitSubmitter("quantum_volume", "noiseless_sim")
-        for _ in range(num_trials):
-            qc = qv_circuit(num_qubits=num_qubits, print_circuit=False)
-            qc = qiskit.transpile(qc, basis_gates=["rx", "ry", "rz", "cx"])
-            submitter_noiseless.submit_circuits(
-                shots=1000, qasm_strs=[qc.qasm()], skip_asking=True, print_summary=False
-            )
-            ideal_counts = submitter_noiseless.retrieve_counts(wait=True, print_timestamp_when_done=False)[0]
-            sorted_ideal_prob_array, bitsrings = qiskit_counts_to_sorted_array(
-                ideal_counts
-            )
-            qc_data = {
-                "qc": qc,
-                "sorted_ideal_prob_array": sorted_ideal_prob_array,
-                "bitstrings": bitsrings,
-            }
-            qc_list[num_qubits].append(qc_data)
-
-    return qc_list
-
+    plt.close('all')
 
 def run_qv_test(
-    num_qubits_list=[2, 3], num_trials=100, optimization_level=1, circuit_submitter=None
+    num_qubits_list=[2, 3], num_trials=200, optimization_level=3, circuit_submitter=None, num_shots=250
 ):
-    qc_list = generate_qv_circuits(
-        num_qubits_list, num_trials=num_trials, optimization_level=optimization_level
-    )
+    # Generate quantum volume circuits
+    qc_list = {}
+    for num_qubits in num_qubits_list:
+        qc_list[num_qubits] = []
+        for _ in range(num_trials):
+            qc = qv_circuit(num_qubits=num_qubits, print_circuit=False)
+            qc_list[num_qubits].append({'qc': qc})
+    
     if circuit_submitter is None:
         circuit_submitter = CircuitSubmitter("quantum_volume", "noisy_sim")
-    for n_qubits in num_qubits_list:
-        circuits = [trial["qc"].qasm() for trial in qc_list[n_qubits]]
-        circuit_submitter.submit_circuits(
-            shots=1000, qasm_strs=circuits, skip_asking=True, print_summary=False
-        )
-        all_counts = circuit_submitter.retrieve_counts(wait=True)
-        noisy_prob_arrays = [qiskit_counts_to_probs(counts) for counts in all_counts]
-        for trial, noisy_probs in zip(qc_list[n_qubits], noisy_prob_arrays):
-            sorted_noisy_prob_array = noisy_probs[trial["bitstrings"]]
-            (
-                noisy_heavy_outputs_strings,
-                noisy_heavy_output_probs,
-                noisy_prob_heavy_output,
-            ) = get_heavy_outputs(n_qubits, sorted_noisy_prob_array)
-            (
-                ideal_heavy_outputs_strings,
-                ideal_heavy_output_probs,
-                ideal_prob_heavy_output,
-            ) = get_heavy_outputs(n_qubits, trial["sorted_ideal_prob_array"])
-            trial["noisy_prob_heavy_output"] = noisy_prob_heavy_output
-            trial["ideal_prob_heavy_output"] = ideal_prob_heavy_output
-            trial["noisy_heavy_output_probs"] = noisy_heavy_output_probs
-            trial["ideal_heavy_output_probs"] = ideal_heavy_output_probs
-    return qc_list
 
+    # Get the basis gates for the noisy simulator
+    basis_gates = circuit_submitter.get_basis_gates()
+    
+    # Get ideal results using noiseless simulation
+    submitter_noiseless = CircuitSubmitter("quantum_volume", "noiseless_sim")
+    
+    for n_qubits in num_qubits_list:
+        circuits_qasm = []
+        for trial in qc_list[n_qubits]:
+            qc_copy = trial["qc"].copy()
+            qc_copy.remove_final_measurements()
+
+            transpiled = qiskit.transpile(
+                qc_copy,
+                basis_gates=basis_gates,
+                optimization_level=optimization_level
+            )
+
+            transpiled.measure_all()
+
+            circuits_qasm.append(transpiled.qasm())
+
+            del trial["qc"]
+        
+        submitter_noiseless.submit_circuits(
+            shots=num_shots, qasm_strs=circuits_qasm, skip_asking=True, print_summary=False
+        )
+        ideal_counts_list = submitter_noiseless.retrieve_counts(wait=True, print_timestamp_when_done=False)
+
+        circuit_submitter.submit_circuits(
+            shots=num_shots, qasm_strs=circuits_qasm, skip_asking=True, print_summary=False
+        )
+        noisy_counts_list = circuit_submitter.retrieve_counts(wait=True)
+
+        del circuits_qasm
+        
+        # Process results for each trial
+        for trial, ideal_counts, noisy_counts in zip(qc_list[n_qubits], ideal_counts_list, noisy_counts_list):
+            total_ideal = sum(ideal_counts.values())
+            total_noisy = sum(noisy_counts.values())
+            
+            # Create complete probability arrays for all 2^n bitstrings
+            num_bitstrings = 2**n_qubits
+            ideal_prob_array = np.zeros(num_bitstrings)
+            noisy_prob_array = np.zeros(num_bitstrings)
+            
+            # Fill probability arrays
+            for bitstring, count in ideal_counts.items():
+                index = int(bitstring, 2)
+                ideal_prob_array[index] = count / total_ideal
+            
+            for bitstring, count in noisy_counts.items():
+                index = int(bitstring, 2)
+                noisy_prob_array[index] = count / total_noisy
+            
+            # Calculate median and heavy outputs based on ideal distribution
+            median_prob = np.median(ideal_prob_array)
+            heavy_output_indices = np.where(ideal_prob_array > median_prob)[0]
+            
+            # Store results
+            trial["ideal_prob_heavy_output"] = np.sum(ideal_prob_array[heavy_output_indices])
+            trial["noisy_prob_heavy_output"] = np.sum(noisy_prob_array[heavy_output_indices])
+            trial["ideal_heavy_output_probs"] = ideal_prob_array[heavy_output_indices]
+            trial["noisy_heavy_output_probs"] = noisy_prob_array[heavy_output_indices]
+
+        # Clear counts lists to free memory
+        del ideal_counts_list
+        del noisy_counts_list
+
+    # Clear noiseless submitter tasks
+    submitter_noiseless.tasks = []
+
+    return qc_list
 
 if __name__ == "__main__":
     from tqdm import tqdm
@@ -403,11 +311,12 @@ if __name__ == "__main__":
     filepath = submitter.benchmark_path
 
     #OLD: num_qubits_list = [2, 3, 4, 5, 6, 7,]
-    from _helpers.helpers import get_num_qubits_list
-    num_qubits_list = get_num_qubits_list()
+    from _helpers.helpers import get_num_qubits
+    num_qubits_list = [get_num_qubits()]
     
-    num_trials = 200
-    optimization_level = 3
+    num_trials = 100
+    num_shots = 500
+    optimization_level = int(os.environ.get("CIRCUIT_OPTIMIZATION"))
 
     # Uncomment the following lines if you are using a noisy simulator and would like to change the noise model
     # from qiskit_aer.noise import NoiseModel
@@ -422,6 +331,7 @@ if __name__ == "__main__":
         num_trials=num_trials,
         optimization_level=optimization_level,
         circuit_submitter=submitter,
+        num_shots=num_shots,
     )
 
     ideal_heavy_outputs_dict = {}
