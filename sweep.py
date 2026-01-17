@@ -36,7 +36,7 @@ if __name__ == "__main__":
         backends_list = config.get("backends")
         all_configs = [(qb, b) for qb in qubits_list for b in backends_list]
 
-    cur_nm = "default_noise_model"
+    cur_nm = "default"
     for sweep_config in all_configs:
         num_qb = sweep_config[0]
         backend = sweep_config[1]

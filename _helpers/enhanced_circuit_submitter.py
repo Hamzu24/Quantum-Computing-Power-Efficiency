@@ -12,7 +12,7 @@ from braket.aws import AwsQuantumTask
 from pprint import pprint
 from copy import deepcopy
 from _helpers.nm_helper import craft_noise_model
-from _helpers.helpers import read_config
+from _helpers.helpers import get_basis_gates_from_backend, read_config, display_noise_model
 from _helpers.registry import submitter_registry
 import os
 import logging
@@ -55,27 +55,28 @@ class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
         )
 
     def _setup_noise_model(self, configs, device_name):
-        self.nm_class = None
+        self.nm_backend = None
 
+        selected_noise_model = configs.get("selected_noise_model")
         noise_models = configs.get("noise_models")
         noisy_devices = ["noisy_sim", "noisy_sim_with_shots"]
         if device_name not in noisy_devices:
             logging.debug(f"You are not using a noisy device simulator. The backend being used is {self.backend}")
             return
 
-        if noise_models.get(device_name) is not None:
-            noise_model_specs = noise_models.get(device_name)
-        elif noise_models.get("default_noise_model") is not None:
-            noise_model_specs = noise_models.get("default_noise_model")
+        if noise_models.get(selected_noise_model) is not None:
+            noise_model_specs = noise_models.get(selected_noise_model)
+        elif noise_models.get("default") is not None:
+            noise_model_specs = noise_models.get("default")
         print(f"\n\nnoise model specs: {noise_model_specs}")
 
         if noise_model_specs:
-            noise_model_instance, nm_class = craft_noise_model(noise_model_specs)
-            self.nm_class = nm_class
+            noise_model_instance, nm_backend = craft_noise_model(noise_model_specs)
+            self.nm_backend = nm_backend
             self._apply_noise_model(noise_model_instance)
             return
         
-        logging.warning(f"No noise model spec set for the device {device_name} or for default_noise_model in the noise_models configuration dictionary. Using the program's default noise model")
+        logging.warning(f"No noise model spec set for the device {device_name} or for default in the noise_models configuration dictionary. Using the program's default noise model")
         
         
         logging.debug(f"You are using a noisy simulator. The backend being used is {self.backend}, noise model is {self.backend.noise_model.name}, device noise model is {self.backend.device.noise_model.name}")
@@ -222,13 +223,12 @@ class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
         return consumption
 
     def get_basis_gates(self):
-        if self.nm_class is None:
+        if self.nm_backend is None:
             return NoiselessSimBasisGates
 
-        if self.nm_class.version == 2:
-            return self.nm_class.target.operation_names
+        if self.nm_backend.version == -1: # -1 represents a custom noise model, not from a fake backend
+            return self.nm_backend.basis_gates
 
-        # Older qiskit fake backend classes have different properties
-        return self.nm_class.configuration().basis_gates
+        return get_basis_gates_from_backend(self.nm_backend)
 
 _helpers.circuit_submitter.CircuitSubmitter = CircuitSubmitter

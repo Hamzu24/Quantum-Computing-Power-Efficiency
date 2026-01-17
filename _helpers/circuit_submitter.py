@@ -172,7 +172,7 @@ class CircuitSubmitter():
                     if qasm_strs is None:
                         raise ValueError("To skip transpilation you must provide qasm_strs")
                 circuits = braket_circuits
-            if self.device_name == "noisy_sim" or self.device_name == "noisy_sim_with_shots":
+            if self.device_name in ["noisy_sim", "noisy_sim_with_shots", "noiseless_sim"]:
                 if qasm_strs is not None:
                     circuits = [QuantumCircuit.from_qasm_str(string) for string in qasm_strs]
 

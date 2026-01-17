@@ -49,7 +49,7 @@ def optimise(metric_path: str, save_image=False, params=None):
 
     if save_image:
         if not params:
-            nm_name = get_nm_name("default_noise_model", config_data)
+            nm_name = get_nm_name("default", config_data)
             num_qb = get_num_qubits()
             metric_name = DEFAULT_PATH
             metric_name = DEFAULT_PATH.split('/')[-1].split('.')[0]

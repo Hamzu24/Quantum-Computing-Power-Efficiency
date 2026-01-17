@@ -24,7 +24,6 @@ from qiskit.circuit.library import XXPlusYYGate
 from qiskit.quantum_info import Statevector
 from qiskit_nature.second_q.circuit.library import SlaterDeterminant
 from qiskit_nature.second_q.hamiltonians import QuadraticHamiltonian
-import numpy as np
 import sys
 import pathlib
 import os
@@ -133,13 +132,12 @@ class FermiHubbardVQE:
         self.qc.barrier()
         # u_h^2
         for i in range(1, self.nsites - 1, 2):
-            if i:
-                p = self.get_qc_param()
-                if self.nsites > 1:
-                    self.qc.append(XXPlusYYGate(p), [i, i + 1])
-                    self.qc.append(
-                        XXPlusYYGate(p), [i + self.nsites, i + 1 + self.nsites]
-                    )
+            p = self.get_qc_param()
+            if self.nsites > 1:
+                self.qc.append(XXPlusYYGate(p), [i, i + 1])
+                self.qc.append(
+                    XXPlusYYGate(p), [i + self.nsites, i + 1 + self.nsites]
+                )
 
 
     def energy_expectation_operators(self):
@@ -172,6 +170,7 @@ class FermiHubbardVQE:
 
 
 def get_energy(fhq, results, shots):
+    n = fhq.num_qubits  # For converting Qiskit big-endian index to qubit index
     t0 = 0
     for i in range(fhq.num_qubits - 1):
         if i + 1 == fhq.nsites:
@@ -180,7 +179,8 @@ def get_energy(fhq, results, shots):
             for basis in ["x", "y"]:
                 key = f"{basis}{i}"
                 for bitstring, counts in results[key].items():
-                    parity = (int(bitstring[i]) + int(bitstring[i + 1])) % 2
+                    # Qiskit big-endian: bitstring[k] = qubit (n-1-k)
+                    parity = (int(bitstring[n - 1 - i]) + int(bitstring[n - 2 - i])) % 2
                     t0_term = (-2 * parity + 1) * counts
                     t0 += t0_term
     t0 /= shots
@@ -188,8 +188,9 @@ def get_energy(fhq, results, shots):
     U = 0
     for i in range(fhq.nsites):
         for bitstring, counts in results["z"].items():
-            parity_up = int(bitstring[i])
-            parity_down = int(bitstring[i + fhq.nsites])
+            # Qiskit big-endian: bitstring[k] = qubit (n-1-k)
+            parity_up = int(bitstring[n - 1 - i])
+            parity_down = int(bitstring[n - 1 - (i + fhq.nsites)])
             parity = (parity_up + parity_down) % 2
 
             U_term = (

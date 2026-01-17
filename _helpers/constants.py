@@ -10,7 +10,7 @@ DEFAULT_PATH = "tutorials/circuit_execution_quality_metrics/quantum_volume/quant
 SIMULATION_METHOD = "density_matrix"
 
 HARDWARE_CONFIG_GROUPS = {
-    "modern": ("perth", "default", "sherbrooke"),
+    "modern": ("default", "sherbrooke"),
     "intermediate": (),
     "legacy": ("oslo")
 }
@@ -68,3 +68,64 @@ SI_PREFIXES = {
 }
 
 NoiselessSimBasisGates = ['u1', 'u2', 'u3', 'u', 'p', 'r', 'rx', 'ry', 'rz', 'id', 'x', 'y', 'z', 'h', 's', 'sdg', 't', 'tdg', 'swap', 'cx', 'cy', 'cz', 'ch', 'cp', 'cu', 'cu1', 'cu2', 'cu3', 'crx', 'cry', 'crz', 'ccx', 'cswap', 'mcx', 'mcy', 'mcz', 'mcp', 'mcu1', 'mcu2', 'mcu3', 'mcswap', 'unitary', 'diagonal', 'multiplexer', 'initialize', 'delay', 'pauli']
+
+DefaultBasisGatesNoiseless = ['rz']
+DefaultBasisGates1qb = ['id', 'sx', 'x']
+DefaultBasisGates2qb = ['cx']
+
+# Comprehensive gate sets
+
+# Virtual/noiseless gates - no physical operation, just software frame changes
+NOISELESS_GATES = {
+    'rz',       # Z rotation (virtual)
+    'p',        # Phase gate (virtual)
+    'u1',       # U1 gate (equivalent to p, virtual)
+    's',        # S gate = sqrt(Z) (virtual)
+    'sdg',      # S-dagger (virtual)
+    't',        # T gate = sqrt(S) (virtual)
+    'tdg',      # T-dagger (virtual)
+    'z',        # Pauli Z (virtual)
+    'id',       # Identity (no operation)
+    'barrier',  # Barrier (compiler directive, not a gate)
+    'delay',    # Delay (no active operation, but has decoherence)
+}
+
+# All single-qubit gates
+SINGLE_QUBIT_GATES = {
+    # Pauli gates
+    'x', 'y', 'z',
+    # Hadamard
+    'h',
+    # Phase gates
+    's', 'sdg', 't', 'tdg', 'p', 'u1',
+    # Rotation gates
+    'rx', 'ry', 'rz', 'r',
+    # General unitary gates
+    'u', 'u2', 'u3',
+    # Square root gates
+    'sx', 'sxdg',
+    # Identity
+    'id',
+    # Measurement and reset (single-qubit operations)
+    'reset', 'measure',
+}
+
+# All two-qubit gates
+TWO_QUBIT_GATES = {
+    # Controlled Paulis
+    'cx', 'cy', 'cz',
+    # Controlled phase gates
+    'cp', 'cu1', 'cs', 'csdg', 'csx',
+    # Controlled rotations
+    'crx', 'cry', 'crz',
+    # Controlled unitaries
+    'cu', 'cu2', 'cu3', 'ch',
+    # SWAP family
+    'swap', 'iswap',
+    # Two-qubit rotations (Ising-type)
+    'rxx', 'ryy', 'rzz', 'rzx',
+    # Hardware-native gates
+    'ecr',      # Echoed cross-resonance (IBM)
+    'cz',       # Controlled-Z (common native gate)
+    'dcx',      # Double CNOT
+}

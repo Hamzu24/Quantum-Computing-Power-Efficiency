@@ -8,6 +8,7 @@ import inspect
 import copy
 from typing import Any
 from qiskit.circuit.library import RZXGate, RZGate, RXGate, RZZGate
+from qiskit.quantum_info import Operator, average_gate_fidelity
 from qiskit_aer.noise import (
     NoiseModel,
     QuantumError,
@@ -22,8 +23,12 @@ from qiskit.providers.models import (
 )
 from _helpers.builders.builder_wrapper import BuilderWrapper
 import logging
-from _helpers.helpers import get_control_parameters, extract_from_json
-from _helpers.constants import EXISTING_MODELS, DEFAULT_INSTRUCTION_TIMES
+from _helpers.helpers import get_basis_gates_from_backend, get_control_parameters, extract_from_json, get_config_value
+from _helpers.constants import (
+    EXISTING_MODELS, DEFAULT_INSTRUCTION_TIMES,
+    DefaultBasisGatesNoiseless, DefaultBasisGates1qb, DefaultBasisGates2qb,
+    NOISELESS_GATES, SINGLE_QUBIT_GATES, TWO_QUBIT_GATES
+)
 
 # Main function
 def craft_noise_model(config: dict):
@@ -32,7 +37,14 @@ def craft_noise_model(config: dict):
         raise ValueError("A noise model must have a type field to be valid!")
 
     elif config_type == "fake_backend":
-        return nm_from_fake_backend(config)
+        pauli_twirling = config.get("pauli_twirling", True)
+        if pauli_twirling:
+            return nm_from_fake_backend(config)
+        else:
+            return nm_from_fake_backend_no_twirl(config)
+
+    elif config_type == "arrhenius":
+        return nm_from_arrhenius(config)
 
     elif config_type == "simple_nm":
         num_qubits, T1s, T2s, instruction_times, overrotation_amount, detuning_amount = \
@@ -42,7 +54,7 @@ def craft_noise_model(config: dict):
                 "T2s": (70e3, {}),
                 "instruction_times": (DEFAULT_INSTRUCTION_TIMES, {}),
             })
-        return custom_noise_model(num_qubits, T1s, T2s, instruction_times, overrotation_amount, detuning_amount), None
+        return simple_custom_nm(num_qubits, T1s, T2s, instruction_times, overrotation_amount, detuning_amount), None
 
     elif config_type == "random_simple_nm":
         num_qubits, seed = extract_from_json(config, {"num_qubits": (4, {}), "seed": (0, {"random": None})})
@@ -60,32 +72,290 @@ def nm_from_fake_backend(config):
     matching_class = get_backend_class(config, backend_name)
     create_backend_symlinks(config, matching_class)
     build_backend(config, backend_name)
+    control_parameters = get_control_parameters(config)
+
+    # Temperature in from_backend determines the target excitation of the qubits asymptotic drift. This only has a minor effect.
+    # 0 is the default value, where the target is just |0>
+
+    temperature = get_config_value(config, "temperature")
 
     # Now, I translate the backend class into a noise model with the correct configuration from the config files
-    # The config files implicitly affect the backend
+    # The config files implicitly affThis only has a minor effect.
     backend = matching_class()
-    noise_model = NoiseModel.from_backend(backend)
+    noise_model = NoiseModel.from_backend(
+        backend,
+        gate_error=True,
+        readout_error=True,
+        temperature=temperature
+    )
     noise_model.name = config["name"]
     return noise_model, backend
-                
+
+def _infidelity_to_angle_1q(infidelity):
+    """
+    Convert infidelity to rotation angle for single-qubit rotation.
+    
+    For U = exp(-i θ/2 σ) where σ is a Pauli:
+    F = (1 + cos(θ/2)²) / 2
+    infidelity = sin²(θ/2)
+    Therefore: θ = 2 * arcsin(sqrt(infidelity))
+    """
+    infidelity = np.clip(infidelity, 0, 1)
+    return 2 * np.arcsin(np.sqrt(infidelity))
+
+
+def _infidelity_to_angle_2q(infidelity):
+    """
+    Convert infidelity to rotation angle for two-qubit ZZ rotation.
+    
+    For U = exp(-i θ/2 ZZ) on d=4 dimensional system:
+    infidelity ≈ θ²/15 for small θ
+    Therefore: θ ≈ sqrt(15 * infidelity)
+    """
+    infidelity = np.clip(infidelity, 0, 1)
+    return np.sqrt(15 * infidelity)
+
+
+def _single_qubit_coherent_unitary(theta):
+    """
+    Create single-qubit coherent error unitary.
+    
+    Uses a combined rotation that models both amplitude (X) and phase (Z) errors.
+    Rotation is about an axis tilted 45° between X and Z.
+    """
+    theta_x = theta / np.sqrt(2)
+    theta_z = theta / np.sqrt(2)
+    
+    Rx = RXGate(theta_x).to_matrix()
+    Rz = RZGate(theta_z).to_matrix()
+    
+    return Rz @ Rx
+
+
+def _two_qubit_coherent_unitary(theta, model='zz'):
+    """
+    Create two-qubit coherent error unitary.
+    
+    Parameters
+    ----------
+    theta : float
+        Rotation angle
+    model : str
+        Error model to use:
+        - 'zz': ZZ rotation (default, appropriate for CR gates on IBM hardware)
+        - 'zx': ZX rotation (CR drive error)
+        - 'xx': XX rotation (ion trap Mølmer-Sørensen gates)
+    
+    Returns
+    -------
+    np.ndarray
+        4x4 unitary matrix
+    """
+    if model == 'zz':
+        return RZZGate(theta).to_matrix()
+    elif model == 'zx':
+        return RZXGate(theta).to_matrix()
+    elif model == 'xx':
+        return RXXGate(theta).to_matrix()
+    else:
+        raise ValueError(f"Unknown two-qubit coherent error model: {model}")
+
+
+def nm_from_fake_backend_no_twirl(config):
+    """
+    Creates a noise model from a fake backend WITHOUT Pauli twirling approximation.
+
+    Instead of using depolarizing errors (which are Pauli channels), this function
+    uses coherent unitary errors to model gate miscalibration. This provides a more
+    physically accurate model for structured circuits where coherent errors can
+    accumulate systematically rather than averaging out.
+
+    The noise model includes:
+    - Thermal relaxation errors (full Kraus operators, not twirled)
+    - Coherent over-rotation errors (unitary, not Pauli)
+    - Readout errors (classical bit-flip)
+
+    Use this when:
+    - Running structured circuits (VQE, QAOA) where coherent errors accumulate
+    - You need more accurate absolute error predictions
+    - Studying error accumulation in variational algorithms
+
+    Use the standard nm_from_fake_backend when:
+    - Running random circuits (Quantum Volume, RB)
+    - You want faster simulation
+    - Relative comparisons are sufficient
+
+    Config options:
+    - "pauli_twirling": false to enable this function
+    - "two_qubit_error_model": 'zz' (default), 'zx', or 'xx'
+
+    Limitations:
+    - Two-qubit coherent error assumes ZZ model (appropriate for IBM CR gates)
+    - For other architectures (ion traps, flux-tunable), change two_qubit_error_model
+    - Single error axis per gate type (real errors vary per qubit pair)
+    - Does not model leakage or crosstalk
+    """
+    # ===========================================
+    # BACKEND SETUP
+    # ===========================================
+    backend_name = config.get("name")
+    two_qubit_error_model = config.get("two_qubit_error_model", "zz")
+
+    exists = config_exists(backend_name)
+    fetch_config_files(backend_name, exit_if_unavailable=exists)
+
+    matching_class = get_backend_class(config, backend_name)
+    create_backend_symlinks(config, matching_class)
+    build_backend(config, backend_name)
+    control_parameters = get_control_parameters(config)
+
+    logging.info(f"Building noise model without twirling for backend: {backend_name}")
+    logging.info(f"Two-qubit coherent error model: {two_qubit_error_model}")
+
+    backend = matching_class()
+    props = backend.properties()
+
+    if hasattr(backend, 'num_qubits'):
+        n_qubits = backend.num_qubits
+    else:
+        n_qubits = backend.configuration().n_qubits
+
+    noise_model = NoiseModel()
+
+    basis_gates = set(get_basis_gates_from_backend(backend))
+    logging.info(f"Basis gates for {backend_name}: {basis_gates}")
+
+    single_qubit_gates = (basis_gates & SINGLE_QUBIT_GATES) - NOISELESS_GATES
+    two_qubit_gates = basis_gates & TWO_QUBIT_GATES
+
+    logging.info(f"1-qubit gates with noise: {single_qubit_gates}")
+    logging.info(f"2-qubit gates: {two_qubit_gates}")
+
+    # ===========================================
+    # ONE-QUBIT GATE ERRORS
+    # ===========================================
+    for qubit in range(n_qubits):
+        try:
+            t1 = props.t1(qubit)
+            t2 = min(props.t2(qubit), 2 * t1)
+        except Exception:
+            raise ValueError(f"Could not find T1/T2 times for qubit {qubit}")
+
+        for gate in single_qubit_gates:
+            try:
+                gate_time = props.gate_length(gate, qubit)
+            except Exception:
+                raise ValueError(f"No gate length for {gate} on qubit {qubit}!")
+
+            try:
+                gate_error = props.gate_error(gate, qubit)
+            except Exception:
+                raise ValueError(f"No gate error for {gate} on qubit {qubit}!")
+
+            errors_to_compose = []
+
+            thermal_err = thermal_relaxation_error(t1, t2, gate_time)
+            errors_to_compose.append(thermal_err)
+            relax_infidelity = 1 - average_gate_fidelity(thermal_err)
+
+            # Coherent error (REPLACES Qiskit's depolarizing_error)
+            remaining_error = max(0, gate_error - relax_infidelity)
+            if remaining_error > 1e-10 and gate not in ['measure', 'reset']:
+                theta = _infidelity_to_angle_1q(remaining_error)
+                U_err = _single_qubit_coherent_unitary(theta)
+                errors_to_compose.append(coherent_unitary_error(U_err))
+
+            combined = errors_to_compose[0]
+            for err in errors_to_compose[1:]:
+                combined = combined.compose(err)
+            noise_model.add_quantum_error(combined, gate, [qubit])
+
+        # Readout error
+        try:
+            p = props.readout_error(qubit)
+            probs = [[1 - p, p], [p, 1 - p]]
+            noise_model.add_readout_error(ReadoutError(probs), [qubit])
+        except Exception:
+            raise ValueError(f"Qubit {qubit} has no defined readout error!")
+
+    # ===========================================
+    # TWO-QUBIT GATE ERRORS
+    # ===========================================
+    if hasattr(backend, 'coupling_map'):
+        coupling_map = backend.coupling_map
+    else:
+        coupling_map = backend.configuration().coupling_map
+
+    if coupling_map is not None:
+        for qubits in coupling_map:
+            q0, q1 = qubits[0], qubits[1]
+
+            try:
+                t1_0 = props.t1(q0)
+                t2_0 = min(props.t2(q0), 2 * t1_0)
+                t1_1 = props.t1(q1)
+                t2_1 = min(props.t2(q1), 2 * t1_1)
+            except Exception:
+                raise ValueError(f"Could not find T1/T2 times for qubits {qubits}")
+
+            for gate in two_qubit_gates:
+                try:
+                    gate_time = props.gate_length(gate, qubits)
+                except Exception:
+                    raise ValueError(f"No gate length for {gate} on qubits {qubits}!")
+
+                try:
+                    gate_error = props.gate_error(gate, qubits)
+                except Exception:
+                    raise ValueError(f"No gate error for {gate} on qubits {qubits}!")
+
+                errors_to_compose = []
+
+                thermal_err_0 = thermal_relaxation_error(t1_0, t2_0, gate_time)
+                thermal_err_1 = thermal_relaxation_error(t1_1, t2_1, gate_time)
+                thermal_err_2q = thermal_err_0.expand(thermal_err_1)
+                errors_to_compose.append(thermal_err_2q)
+
+                relax_infidelity = 1 - average_gate_fidelity(thermal_err_2q)
+
+                remaining_error = max(0, gate_error - relax_infidelity)
+                if remaining_error > 1e-10:
+                    theta = _infidelity_to_angle_2q(remaining_error)
+                    U_err = _two_qubit_coherent_unitary(theta, model=two_qubit_error_model)
+                    errors_to_compose.append(coherent_unitary_error(U_err))
+
+                combined = errors_to_compose[0]
+                for err in errors_to_compose[1:]:
+                    combined = combined.compose(err)
+                noise_model.add_quantum_error(combined, gate, qubits)
+
+    # ===========================================
+    # FINALIZATION
+    # ===========================================
+    noise_model.name = config["name"] + "_no_twirl"
+    logging.info(f"Created no-twirl noise model with {n_qubits} qubits")
+
+    return noise_model, backend
+
+
 def fetch_config_files(backend_name, exit_if_unavailable=True):
     save_location = os.environ.get("BACKEND_CONFIGS_FOLDER") + backend_name
     dir_path = Path(save_location)
     needed_keywords = get_needed_files(dir_path)
 
     # Get files from GitHub API
-    #if needed_keywords:
-    #    CURRENT_BRANCH = "stable/0.46"
-    #    latest_commit_sha = get_commit_sha_for_branch("Qiskit", "qiskit", CURRENT_BRANCH)
-    #    if latest_commit_sha is None:
-    #        if exit_if_unavailable:
-    #            raise Exception("The commit SHA was not found from the branch. Exiting because exit_if_unavailable is True")
-    #        else:
-    #            logging.error("Returning from download_config without downloading anything")
-    #            return None
-    #
-    #    files = download_github_backend_files(backend_name, latest_commit_sha)
-    #    write_needed_files(files, dir_path, needed_keywords)
+    if needed_keywords:
+        CURRENT_BRANCH = "stable/0.46"
+        latest_commit_sha = get_commit_sha_for_branch("Qiskit", "qiskit", CURRENT_BRANCH)
+        if latest_commit_sha is None:
+            if exit_if_unavailable:
+                raise Exception("The commit SHA was not found from the branch. Exiting because exit_if_unavailable is True")
+            else:
+                logging.error("Returning from download_config without downloading anything")
+                return None
+    
+        files = download_github_backend_files(backend_name, latest_commit_sha)
+        write_needed_files(files, dir_path, needed_keywords)
     
     # The props file is currently the only one that is configured
     reset_props_file(dir_path)
@@ -170,10 +440,7 @@ def download_github_backend_files(backend_name, commit_sha):
 
     if response.status_code != 200:
         logging.error(f"Unable to find files for the backend {backend_name} from the url {url}.")
-        if exit_if_unavailable:
-            raise requests.exceptions.HTTPError(
-                f"HTTP: {response.status_code} for {url}"
-            )
+        # Note: exit_if_unavailable is not available in this scope, just return None
         return None
     else:
         files = response.json()
@@ -228,12 +495,69 @@ def reset_props_file(dir_path):
     else:
         logging.critical(f"The props file which is necessary to configuration of fake backends was not found from the qiskit repository")
 
-# Noise models not from backend functions below
-        
-def custom_noise_model(num_qubits = 4, T1s = 50e3, T2s = 70e3, instruction_times: dict = None, overrotation_amount = np.pi/100, detuning_amount = np.pi/120):
+# Noise models not from backend functions are below
 
-    # Truncate T2s <= T1s
+class CustomNmClass():
+    basis_gates = DefaultBasisGates2qb + DefaultBasisGates1qb + DefaultBasisGatesNoiseless
+    version = -1
+
+def nm_from_arrhenius(config):
+    """
+    Returns a NoiseModel where T1 is derived from the Arrhenius error probability.
+    This accurately models the 'decay' to |0> rather than just scrambling.
+    """
+    k_b = 1.380649e-23
+    h   = 6.626070e-34
+
+    control_parameters = get_control_parameters(config)
+
+    T = get_config_value(control_parameters, "temperature")
+    gate_length = config.get("gate_length", 50e-9) # Default 50ns gate
+    
+    if "qubit_frequency_hz" in config:
+        E = h * config["qubit_frequency_hz"]
+    else:
+        E = h * 5e9 
+
+    p_phys = np.exp(-E / (k_b * T)) # Use simple arrhenius probability
+    
+    if p_phys <= 0:
+        T1 = np.inf
+        T2 = np.inf
+    else:
+        # Assume T1 ≈ gate_length / p_phys
+        T1 = gate_length / p_phys
+        
+        # Assume T2 = 2*T1
+        T2 = 2 * T1
+
+    noise_model = NoiseModel()
+    
+    error_1q = thermal_relaxation_error(T1, T2, gate_length)
+
+    gate_length_2q = 4 * gate_length 
+    error_2q_single = thermal_relaxation_error(T1, T2, gate_length_2q)
+    error_2q = error_2q_single.tensor(error_2q_single)
+
+    noise_model.add_all_qubit_quantum_error(error_1q, DefaultBasisGates1qb)
+    noise_model.add_all_qubit_quantum_error(error_2q, DefaultBasisGates2qb)
+
+    return noise_model, CustomNmClass
+
+def simple_custom_nm(num_qubits = 4, T1s = 50e3, T2s = 70e3, instruction_times: dict = None, overrotation_amount = np.pi/100, detuning_amount = np.pi/120):
+
+    # Convert scalars to arrays if needed
+    if isinstance(T1s, (int, float)):
+        T1s = np.full(num_qubits, T1s)
+    if isinstance(T2s, (int, float)):
+        T2s = np.full(num_qubits, T2s)
+
+    # Truncate T2s <= 2*T1s
     T2s = np.array([min(T2s[j], 2 * T1s[j]) for j in range(num_qubits)])
+
+    # Use DEFAULT_INSTRUCTION_TIMES if not provided
+    if instruction_times is None:
+        instruction_times = DEFAULT_INSTRUCTION_TIMES
 
     # Instruction times (in nanoseconds)
     time_rz = instruction_times.get("time_rz")
@@ -296,7 +620,7 @@ def custom_noise_model(num_qubits = 4, T1s = 50e3, T2s = 70e3, instruction_times
             noise_model.add_quantum_error(coherent_unitary_2q_error, ["cx"], [j, k], warnings=False)
             noise_model.add_quantum_error(zz_2q_error, ["cx"], [j, k], warnings=False)
 
-    return noise_model
+    return noise_model, CustomNmClass
 
 def random_noise_model(num_qubits = 4, seed = 0):
 
@@ -373,5 +697,5 @@ def random_noise_model(num_qubits = 4, seed = 0):
             noise_model.add_quantum_error(coherent_unitary_2q_error, ["cx"], [j, k], warnings=False)
             noise_model.add_quantum_error(zz_2q_error, ["cx"], [j, k], warnings=False)
 
-    return noise_model
+    return noise_model, CustomNmClass
 

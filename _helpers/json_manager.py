@@ -32,9 +32,14 @@ class JsonManager():
                     raise ValueError("Error: specified path does not exist, and the create_path flag is set to False")
 
             current = current[key]
-        
+
         # Set the value
-        current[keys[-1]] = value
+        final_key = keys[-1]
+        if isinstance(current, list):
+            idx = int(final_key[1:-1])
+            current[idx] = value
+        else:
+            current[final_key] = value
 
     def resolve(self, path: str, create_path=False):
         """ Resolve a path to the contents in the file data """

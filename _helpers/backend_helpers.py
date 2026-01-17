@@ -12,7 +12,6 @@ from qiskit_braket_provider import (
 )
 from qiskit_braket_provider.providers.adapter import *
 from _helpers.noisy_simulator_wrappers import *
-from _helpers.noise_model import custom_noise_model
 
 class AwsBackendHelper(ABC):
     def __init__(self) -> None:
@@ -62,6 +61,7 @@ class NoisySimulatorHelper(AwsBackendHelper):
             self.noise_model = kwargs.get('noise_model')
             self.device = NoisySimWrapper(noise_model = self.noise_model)
         else:
+            self.noise_model = None
             self.device = NoisySimWrapper()
         self.name = "noisy_sim"
 
@@ -90,6 +90,7 @@ class NoisySimulatorHelperWithShots(AwsBackendHelper):
             self.noise_model = kwargs.get('noise_model')
             self.device = NoisySimWrapperWithShots(noise_model = self.noise_model)
         else:
+            self.noise_model = None
             self.device = NoisySimWrapperWithShots()
         self.name = "noisy_sim_with_shots"
 

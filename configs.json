@@ -1,29 +1,55 @@
 {
-    "num_qubits": "4",
-    "optimisation_iterations": 10,
-    "device_tracking": {
-        "noiseless_sim": 0,
-        "noisy_sim": 2
+  "num_qubits": 9,
+  "circuit_optimisation_level": 3,
+  "optimisation_iterations": 3,
+  "selected_noise_model": "arrhenius",
+  "device_tracking": {
+    "noiseless_sim": 0,
+    "noisy_sim": 2
+  },
+  "power_configs": {
+    "default_power_config": {
+      "cx": 2,
+      "rz": 3,
+      "sx": 1,
+      "x": 1,
+      "u1": 1,
+      "u2": 1,
+      "u3": 1
+    }
+  },
+  "noise_models": {
+    "default": {
+      "type": "fake_backend",
+      "name": "tokyo",
+      "pauli_twirling": false,
+      "control_parameters": {
+        "temperature": [
+          [
+            40,
+            "mK"
+          ],
+          [
+            20,
+            10,
+            "mK"
+          ]
+        ]
+      },
+      "init_control_parameters": {
+        "temperature": [
+          13,
+          "mK"
+        ]
+      }
     },
-    "power_configs": {
-        "default_power_config": {
-            "cx": 2,
-            "rz": 3,
-            "sx": 1,
-            "x": 1
-        }
-            
-    },
-    "noise_models": {
-        "default_noise_model": {
-            "type": "fake_backend",
-            "name": "perth",
-            "control_parameters": {
-                "temperature": [[60, "mK"], [20, 10, "mK"]]
-            },
-            "init_control_parameters": {
-                "temperature": [13, "mK"]
-            }
+    "arrhenius": {
+        "type": "arrhenius",
+        "qubit_frequency_hz": 5000000000,
+        "gate_length": 35e-9,
+        "control_parameters": {
+          "temperature": [[15, "mK"], [15, 10, "mK"]]
         }
     }
+  }
 }

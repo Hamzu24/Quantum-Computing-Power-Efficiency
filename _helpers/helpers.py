@@ -3,6 +3,8 @@ import logging
 import os
 from typing import Any
 from _helpers.constants import SI_PREFIXES
+from qiskit_aer.noise import NoiseModel
+import numpy as np
 
 def read_config():
     CONFIG_PATH = os.environ.get("CONFIG_PATH")
@@ -50,7 +52,6 @@ def get_control_parameters(config: dict):
             val = start + (iteration*step)
             control_parameters[cur_param] = [val, unit]
     
-    print(f"control parameters: {control_parameters}")
     return control_parameters
 
 """
@@ -73,13 +74,12 @@ def extract_from_json(json_dict, values: dict[str, tuple[Any, dict[Any, Any]]], 
 
     for key, data in values.items():
         exceptions = data[1]
-        cur_val = json_dict.get("key")
+        cur_val = json_dict.get(key)
         if cur_val is None:
             if key in required_values:
                 raise ValueError(f"Required value {key} was not in json!")
 
             cur_val = data[0]
-            continue
 
         elif cur_val in exceptions.keys():
             cur_val = exceptions.get(cur_val)
@@ -137,3 +137,251 @@ def set_circuit_optimisation():
 
     os.environ["CIRCUIT_OPTIMIZATION"] = str(circuit_optimisation_level)
     return circuit_optimisation_level
+
+def get_basis_gates_from_backend(backend):
+        if backend.version == 2:
+            return backend.target.operation_names
+
+        # V1 backends use configuration().basis_gates
+        return backend.configuration().basis_gates
+
+
+# NOISE MODEL DISPLAY FUNCTIONS
+
+def display_noise_model(noise_model: NoiseModel, verbose: bool = True) -> dict:
+    """
+    Fully display all details of a Qiskit NoiseModel instance.
+    
+    Args:
+        noise_model: The NoiseModel instance to inspect
+        verbose: If True, print detailed output. If False, just return the dict.
+    
+    Returns:
+        Dictionary containing all extracted noise model information
+    """
+    info = {
+        'basis_gates': noise_model.basis_gates,
+        'noise_instructions': noise_model.noise_instructions,
+        'noise_qubits': noise_model.noise_qubits,
+        'quantum_errors': [],
+        'readout_errors': []
+    }
+    
+    if verbose:
+        print("=" * 80)
+        print("NOISE MODEL DETAILED REPORT")
+        print("=" * 80)
+        
+        print(f"\nBasis Gates: {noise_model.basis_gates}")
+        print(f"Instructions with noise: {noise_model.noise_instructions}")
+        print(f"Qubits with noise: {noise_model.noise_qubits}")
+    
+    if verbose:
+        print("\n" + "-" * 80)
+        print("QUANTUM ERRORS (Gate Errors)")
+        print("-" * 80)
+    
+    for instruction in noise_model.noise_instructions:
+        if instruction == 'measure': # Handle readout errors separately
+            continue
+            
+        default_error = noise_model._default_quantum_errors.get(instruction)
+        if default_error is not None:
+            error_info = _extract_quantum_error_info(default_error, instruction, 'all')
+            info['quantum_errors'].append(error_info)
+            if verbose:
+                _print_quantum_error(error_info)
+        
+        if instruction in noise_model._local_quantum_errors:
+            for qubits, error in noise_model._local_quantum_errors[instruction].items():
+                error_info = _extract_quantum_error_info(error, instruction, qubits)
+                info['quantum_errors'].append(error_info)
+                if verbose:
+                    _print_quantum_error(error_info)
+    
+    # Now handling readout errors
+    if verbose:
+        print("\n" + "-" * 80)
+        print("READOUT ERRORS (Measurement Errors)")
+        print("-" * 80)
+    
+    if noise_model._default_readout_error is not None:
+        error_info = _extract_readout_error_info(noise_model._default_readout_error, 'all')
+        info['readout_errors'].append(error_info)
+        if verbose:
+            _print_readout_error(error_info)
+    
+    for qubits, error in noise_model._local_readout_errors.items():
+        error_info = _extract_readout_error_info(error, qubits)
+        info['readout_errors'].append(error_info)
+        if verbose:
+            _print_readout_error(error_info)
+    
+    # Summary statistics
+    if verbose:
+        print("\n" + "-" * 80)
+        print("SUMMARY STATISTICS")
+        print("-" * 80)
+        _print_summary(info)
+    
+    return info
+
+
+def _extract_quantum_error_info(error, instruction: str, qubits) -> dict:
+    """Extract detailed information from a QuantumError object."""
+    error_info = {
+        'instruction': instruction,
+        'qubits': qubits,
+        'num_qubits': error.num_qubits,
+        'size': error.size,  # Number of Kraus operators or circuits
+        'probabilities': error.probabilities,
+        'circuits': [],
+        'error_type': _identify_error_type(error)
+    }
+    
+    # Extract circuit/operator information
+    for i, (prob, circ) in enumerate(zip(error.probabilities, error.circuits)):
+        circ_info = {
+            'probability': prob,
+            'num_ops': len(circ.data) if hasattr(circ, 'data') else 0,
+            'operations': []
+        }
+        
+        if hasattr(circ, 'data'):
+            for op in circ.data:
+                op_info = {
+                    'name': op.operation.name,
+                    'qubits': [q._index for q in op.qubits] if hasattr(op.qubits[0], '_index') else list(range(len(op.qubits))),
+                }
+                # Try to get parameters if available
+                if hasattr(op.operation, 'params') and op.operation.params:
+                    op_info['params'] = [float(p) if isinstance(p, (int, float, np.floating)) else str(p) 
+                                         for p in op.operation.params]
+                circ_info['operations'].append(op_info)
+        
+        error_info['circuits'].append(circ_info)
+    
+    return error_info
+
+
+def _extract_readout_error_info(error, qubits) -> dict:
+    """Extract detailed information from a ReadoutError object."""
+    probs = error.probabilities
+    
+    error_info = {
+        'qubits': qubits,
+        'num_qubits': error.number_of_qubits,
+        'probabilities_matrix': probs.tolist() if hasattr(probs, 'tolist') else probs,
+    }
+    
+    # For single-qubit readout errors, extract p(0|1) and p(1|0)
+    if error.number_of_qubits == 1:
+        error_info['p0_given_0'] = probs[0][0]
+        error_info['p1_given_0'] = probs[0][1]
+        error_info['p0_given_1'] = probs[1][0]
+        error_info['p1_given_1'] = probs[1][1]
+        error_info['avg_readout_error'] = (probs[0][1] + probs[1][0]) / 2
+    
+    return error_info
+
+
+def _identify_error_type(error) -> str:
+    """Try to identify the type of quantum error."""
+    probs = error.probabilities
+    circuits = error.circuits
+    
+    # Check if it's close to a depolarizing channel
+    if len(probs) == 2 and len(circuits) == 2:
+        # Could be a simple bit-flip or phase-flip
+        return "simple_pauli"
+    
+    if error.num_qubits == 1:
+        if len(probs) == 4:
+            # Check for depolarizing (equal Pauli probabilities)
+            pauli_probs = probs[1:]  # Exclude identity
+            if len(pauli_probs) == 3 and np.allclose(pauli_probs, pauli_probs[0], rtol=0.1):
+                return "depolarizing"
+            return "general_pauli_1q"
+        return "general_1q"
+    
+    if error.num_qubits == 2:
+        if len(probs) == 16:
+            return "general_pauli_2q"
+        return "general_2q"
+    
+    return "unknown"
+
+
+def _print_quantum_error(error_info: dict):
+    """Print formatted quantum error information."""
+    print(f"\n  {error_info['instruction'].upper()} on qubit(s) {error_info['qubits']}:")
+    print(f"    Error type: {error_info['error_type']}")
+    print(f"    Number of Kraus terms: {error_info['size']}")
+    
+    # Calculate and display error rate (1 - probability of identity)
+    identity_prob = error_info['probabilities'][0] if error_info['probabilities'] else 0
+    error_rate = 1 - identity_prob
+    print(f"    Total error rate: {error_rate:.6e} (identity prob: {identity_prob:.6f})")
+    
+    # Show breakdown of error probabilities
+    print(f"    Probability distribution:")
+    for i, circ_info in enumerate(error_info['circuits']):
+        prob = circ_info['probability']
+        if prob > 1e-10:  # Only show non-negligible probabilities
+            ops_str = ", ".join([op['name'] for op in circ_info['operations']]) if circ_info['operations'] else "identity"
+            if prob > 0.001:
+                print(f"      [{i}] p={prob:.6f}: {ops_str}")
+            else:
+                print(f"      [{i}] p={prob:.2e}: {ops_str}")
+
+
+def _print_readout_error(error_info: dict):
+    """Print formatted readout error information."""
+    print(f"\n  Qubit(s) {error_info['qubits']}:")
+    
+    if error_info['num_qubits'] == 1:
+        print(f"    P(measure 0 | prepared 0): {error_info['p0_given_0']:.6f}")
+        print(f"    P(measure 1 | prepared 0): {error_info['p1_given_0']:.6e}")
+        print(f"    P(measure 0 | prepared 1): {error_info['p0_given_1']:.6e}")
+        print(f"    P(measure 1 | prepared 1): {error_info['p1_given_1']:.6f}")
+        print(f"    Average readout error: {error_info['avg_readout_error']:.6e}")
+    else:
+        print(f"    Probability matrix ({2**error_info['num_qubits']}x{2**error_info['num_qubits']}):")
+        matrix = error_info['probabilities_matrix']
+        for i, row in enumerate(matrix):
+            print(f"      |{i:0{error_info['num_qubits']}b}⟩ → {[f'{p:.4f}' for p in row]}")
+
+
+def _print_summary(info: dict):
+    """Print summary statistics of the noise model."""
+    # Gate error statistics
+    gate_errors = {}
+    for err in info['quantum_errors']:
+        instr = err['instruction']
+        error_rate = 1 - err['probabilities'][0]
+        if instr not in gate_errors:
+            gate_errors[instr] = []
+        gate_errors[instr].append(error_rate)
+    
+    print("\nGate Error Rates:")
+    for gate, rates in sorted(gate_errors.items()):
+        rates = np.array(rates)
+        print(f"  {gate}:")
+        print(f"    Min:  {rates.min():.6e}")
+        print(f"    Max:  {rates.max():.6e}")
+        print(f"    Mean: {rates.mean():.6e}")
+        print(f"    Std:  {rates.std():.6e}")
+    
+    # Readout error statistics
+    readout_rates = []
+    for err in info['readout_errors']:
+        if 'avg_readout_error' in err:
+            readout_rates.append(err['avg_readout_error'])
+    
+    if readout_rates:
+        rates = np.array(readout_rates)
+        print("\nReadout Error Rates:")
+        print(f"  Min:  {rates.min():.6e}")
+        print(f"  Max:  {rates.max():.6e}")
+        print(f"  Mean: {rates.mean():.6e}")
+        print(f"  Std:  {rates.std():.6e}")

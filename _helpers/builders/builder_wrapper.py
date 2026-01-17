@@ -16,14 +16,14 @@ class BuilderWrapper:
         self.name = name
         HARDWARE_CONFIG_PATH = os.environ.get("HARDWARE_CONFIG_PATH")
         self.load_hardware_params(HARDWARE_CONFIG_PATH)
-        logging.info(f"config for backend: {self.config}")
+        logging.info(f"hardware config for backend: {self.config}")
         
         builder_name = self.config["builder_class"]
         backend_config_folder = os.environ.get("BACKEND_CONFIGS_FOLDER")
         filename = backend_config_folder + f"{name}/props_{name}.json"
         self.json_manager = JsonManager(filename)
-        print(builder_registry.list_builders())
-        self.builder = builder_registry.get_builder(builder_name)(name, self.config, self.json_manager)
+        logging.info(f"All available builders: {builder_registry.list_builders()}")
+        self.builder = builder_registry.get_builder(builder_name)(name, self.config, self.json_manager, init_control_parameters)
 
         self.builder.optimise_parameters()
         logging.info(f"Optimised parameters. config: {self.builder.config}")

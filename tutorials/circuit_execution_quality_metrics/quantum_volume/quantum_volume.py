@@ -243,7 +243,7 @@ def run_qv_test(
 
             transpiled = qiskit.transpile(
                 qc_copy,
-                basis_gates=basis_gates,
+               basis_gates=basis_gates,
                 optimization_level=optimization_level
             )
 
@@ -254,12 +254,12 @@ def run_qv_test(
             del trial["qc"]
         
         submitter_noiseless.submit_circuits(
-            shots=num_shots, qasm_strs=circuits_qasm, skip_asking=True, print_summary=False
+            shots=num_shots, qasm_strs=circuits_qasm, skip_asking=True, print_summary=False, skip_transpilation=True
         )
         ideal_counts_list = submitter_noiseless.retrieve_counts(wait=True, print_timestamp_when_done=False)
 
         circuit_submitter.submit_circuits(
-            shots=num_shots, qasm_strs=circuits_qasm, skip_asking=True, print_summary=False
+            shots=num_shots, qasm_strs=circuits_qasm, skip_asking=True, print_summary=False, skip_transpilation=True
         )
         noisy_counts_list = circuit_submitter.retrieve_counts(wait=True)
 
