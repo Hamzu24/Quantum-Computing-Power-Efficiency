@@ -29,6 +29,8 @@ from _helpers.constants import (
     DefaultBasisGatesNoiseless, DefaultBasisGates1qb, DefaultBasisGates2qb,
     NOISELESS_GATES, SINGLE_QUBIT_GATES, TWO_QUBIT_GATES
 )
+from _helpers.noise_models import noise_model_registry, NoiseModelWrapper
+from typing import Type
 
 # Main function
 def craft_noise_model(config: dict):
@@ -36,31 +38,20 @@ def craft_noise_model(config: dict):
     if config_type is None:
         raise ValueError("A noise model must have a type field to be valid!")
 
-    elif config_type == "fake_backend":
+    # Fake backend noise models are handled outside the registry!
+    if config_type == "fake_backend":
         pauli_twirling = config.get("pauli_twirling", True)
         if pauli_twirling:
             return nm_from_fake_backend(config)
         else:
             return nm_from_fake_backend_no_twirl(config)
 
-    elif config_type == "arrhenius":
-        return nm_from_arrhenius(config)
+    if config_type in noise_model_registry:
+        wrapper = NoiseModelWrapper(config)
+        return wrapper.build()
 
-    elif config_type == "simple_nm":
-        num_qubits, T1s, T2s, instruction_times, overrotation_amount, detuning_amount = \
-            extract_from_json(config, {
-                "num_qubits": (4, {}),
-                "T1s": (50e3, {}),
-                "T2s": (70e3, {}),
-                "instruction_times": (DEFAULT_INSTRUCTION_TIMES, {}),
-            })
-        return simple_custom_nm(num_qubits, T1s, T2s, instruction_times, overrotation_amount, detuning_amount), None
-
-    elif config_type == "random_simple_nm":
-        num_qubits, seed = extract_from_json(config, {"num_qubits": (4, {}), "seed": (0, {"random": None})})
-        return random_noise_model(num_qubits, seed), None
-    
-    return None
+    raise ValueError(f"Unknown noise model type: {config_type}. "
+                     f"Available types: fake_backend, {noise_model_registry.list_factories()}")
         
 def nm_from_fake_backend(config):
     backend_name = config.get("name")
@@ -135,7 +126,7 @@ def _single_qubit_coherent_unitary(theta):
 def _two_qubit_coherent_unitary(theta, model='zz'):
     """
     Create two-qubit coherent error unitary.
-    
+
     Parameters
     ----------
     theta : float
@@ -145,7 +136,7 @@ def _two_qubit_coherent_unitary(theta, model='zz'):
         - 'zz': ZZ rotation (default, appropriate for CR gates on IBM hardware)
         - 'zx': ZX rotation (CR drive error)
         - 'xx': XX rotation (ion trap Mølmer-Sørensen gates)
-    
+
     Returns
     -------
     np.ndarray
@@ -159,6 +150,87 @@ def _two_qubit_coherent_unitary(theta, model='zz'):
         return RXXGate(theta).to_matrix()
     else:
         raise ValueError(f"Unknown two-qubit coherent error model: {model}")
+
+
+class BackendPropertiesAdapter:
+    """
+    Adapter class to provide a unified interface for accessing backend properties
+    from both V1 backends (with .properties()) and V2 backends (with .target).
+    """
+
+    def __init__(self, backend):
+        self.backend = backend
+        self._is_v2 = hasattr(backend, 'target') and backend.target is not None
+
+        if self._is_v2:
+            self._target = backend.target
+            self._props = None
+        else:
+            self._target = None
+            self._props = backend.properties()
+
+    def t1(self, qubit: int) -> float:
+        if self._is_v2:
+            qp = self._target.qubit_properties
+            if qp is None or qp[qubit] is None:
+                raise ValueError(f"No qubit properties for qubit {qubit}")
+            return qp[qubit].t1
+        else:
+            return self._props.t1(qubit)
+
+    def t2(self, qubit: int) -> float:
+        if self._is_v2:
+            qp = self._target.qubit_properties
+            if qp is None or qp[qubit] is None:
+                raise ValueError(f"No qubit properties for qubit {qubit}")
+            return qp[qubit].t2
+        else:
+            return self._props.t2(qubit)
+
+    def gate_length(self, gate: str, qubits) -> float:
+        if self._is_v2:
+            if isinstance(qubits, int):
+                qubits = (qubits,)
+            else:
+                qubits = tuple(qubits)
+
+            if gate not in self._target.operation_names:
+                raise ValueError(f"Gate {gate} not in target")
+
+            inst_props = self._target[gate].get(qubits)
+            if inst_props is None:
+                raise ValueError(f"No properties for {gate} on qubits {qubits}")
+            return inst_props.duration
+        else:
+            return self._props.gate_length(gate, qubits)
+
+    def gate_error(self, gate: str, qubits) -> float:
+        if self._is_v2:
+            if isinstance(qubits, int):
+                qubits = (qubits,)
+            else:
+                qubits = tuple(qubits)
+
+            if gate not in self._target.operation_names:
+                raise ValueError(f"Gate {gate} not in target")
+
+            inst_props = self._target[gate].get(qubits)
+            if inst_props is None:
+                raise ValueError(f"No properties for {gate} on qubits {qubits}")
+            return inst_props.error
+        else:
+            return self._props.gate_error(gate, qubits)
+
+    def readout_error(self, qubit: int) -> float:
+        if self._is_v2:
+            # V2 backends store readout error in the measure instruction
+            if 'measure' in self._target.operation_names:
+                inst_props = self._target['measure'].get((qubit,))
+                if inst_props is not None and inst_props.error is not None:
+                    return inst_props.error
+            raise ValueError(f"No readout error for qubit {qubit}")
+        else:
+            return self._props.readout_error(qubit)
 
 
 def nm_from_fake_backend_no_twirl(config):
@@ -213,10 +285,12 @@ def nm_from_fake_backend_no_twirl(config):
     logging.info(f"Two-qubit coherent error model: {two_qubit_error_model}")
 
     backend = matching_class()
-    props = backend.properties()
+    props = BackendPropertiesAdapter(backend)
 
     if hasattr(backend, 'num_qubits'):
         n_qubits = backend.num_qubits
+    elif hasattr(backend, 'target') and backend.target is not None:
+        n_qubits = backend.target.num_qubits
     else:
         n_qubits = backend.configuration().n_qubits
 
@@ -495,207 +569,5 @@ def reset_props_file(dir_path):
     else:
         logging.critical(f"The props file which is necessary to configuration of fake backends was not found from the qiskit repository")
 
-# Noise models not from backend functions are below
-
-class CustomNmClass():
-    basis_gates = DefaultBasisGates2qb + DefaultBasisGates1qb + DefaultBasisGatesNoiseless
-    version = -1
-
-def nm_from_arrhenius(config):
-    """
-    Returns a NoiseModel where T1 is derived from the Arrhenius error probability.
-    This accurately models the 'decay' to |0> rather than just scrambling.
-    """
-    k_b = 1.380649e-23
-    h   = 6.626070e-34
-
-    control_parameters = get_control_parameters(config)
-
-    T = get_config_value(control_parameters, "temperature")
-    gate_length = config.get("gate_length", 50e-9) # Default 50ns gate
-    
-    if "qubit_frequency_hz" in config:
-        E = h * config["qubit_frequency_hz"]
-    else:
-        E = h * 5e9 
-
-    p_phys = np.exp(-E / (k_b * T)) # Use simple arrhenius probability
-    
-    if p_phys <= 0:
-        T1 = np.inf
-        T2 = np.inf
-    else:
-        # Assume T1 ≈ gate_length / p_phys
-        T1 = gate_length / p_phys
-        
-        # Assume T2 = 2*T1
-        T2 = 2 * T1
-
-    noise_model = NoiseModel()
-    
-    error_1q = thermal_relaxation_error(T1, T2, gate_length)
-
-    gate_length_2q = 4 * gate_length 
-    error_2q_single = thermal_relaxation_error(T1, T2, gate_length_2q)
-    error_2q = error_2q_single.tensor(error_2q_single)
-
-    noise_model.add_all_qubit_quantum_error(error_1q, DefaultBasisGates1qb)
-    noise_model.add_all_qubit_quantum_error(error_2q, DefaultBasisGates2qb)
-
-    return noise_model, CustomNmClass
-
-def simple_custom_nm(num_qubits = 4, T1s = 50e3, T2s = 70e3, instruction_times: dict = None, overrotation_amount = np.pi/100, detuning_amount = np.pi/120):
-
-    # Convert scalars to arrays if needed
-    if isinstance(T1s, (int, float)):
-        T1s = np.full(num_qubits, T1s)
-    if isinstance(T2s, (int, float)):
-        T2s = np.full(num_qubits, T2s)
-
-    # Truncate T2s <= 2*T1s
-    T2s = np.array([min(T2s[j], 2 * T1s[j]) for j in range(num_qubits)])
-
-    # Use DEFAULT_INSTRUCTION_TIMES if not provided
-    if instruction_times is None:
-        instruction_times = DEFAULT_INSTRUCTION_TIMES
-
-    # Instruction times (in nanoseconds)
-    time_rz = instruction_times.get("time_rz")
-    time_sx = instruction_times.get("time_sx")
-    time_x = instruction_times.get("time_x")
-    time_cx = instruction_times.get("time_cx")
-    time_reset = instruction_times.get("time_reset")
-    time_measure = instruction_times.get("time_measure")
-
-    if time_rz is None or time_sx is None or time_x is None or time_cx is None or time_reset is None or time_measure is None:
-        raise ValueError("The instruction times extracted from the configuration did not include all the necessary fields to create a custom noise model!")
-
-    # QuantumError objects
-    errors_reset = [thermal_relaxation_error(t1, t2, time_reset)
-                    for t1, t2 in zip(T1s, T2s)]
-    errors_measure = [thermal_relaxation_error(t1, t2, time_measure)
-                    for t1, t2 in zip(T1s, T2s)]
-    errors_u1  = [thermal_relaxation_error(t1, t2, time_rz)
-                for t1, t2 in zip(T1s, T2s)]
-    errors_u2  = [thermal_relaxation_error(t1, t2, time_sx)
-                for t1, t2 in zip(T1s, T2s)]
-    errors_u3  = [thermal_relaxation_error(t1, t2, time_x)
-                for t1, t2 in zip(T1s, T2s)]
-    errors_cx = [[thermal_relaxation_error(t1a, t2a, time_cx).expand(
-                thermal_relaxation_error(t1b, t2b, time_cx))
-                for t1a, t2a in zip(T1s, T2s)]
-                for t1b, t2b in zip(T1s, T2s)]
-
-    noise_model = NoiseModel()
-
-    overrotation_amount = np.pi/100
-    detuning_amount = np.pi/120
-    overrotation_unitary_1q = RXGate(overrotation_amount).to_matrix()
-    detuning_unitary_1q = RZGate(detuning_amount).to_matrix()
-    sx_gate_overrotation_error = coherent_unitary_error(overrotation_unitary_1q)
-    sx_gate_detuning_error = coherent_unitary_error(detuning_unitary_1q)
-
-    coherent_unitary_2q = RZXGate(overrotation_amount).to_matrix()
-    zz_unitary_2q = RZZGate(overrotation_amount).to_matrix()
-    coherent_unitary_2q_error = coherent_unitary_error(coherent_unitary_2q)
-    zz_2q_error = coherent_unitary_error(zz_unitary_2q)
-
-
-    # Add errors to noise model
-    noise_model = NoiseModel()
-    for j in range(num_qubits):
-        noise_model.add_quantum_error(errors_reset[j], "reset", [j]) # maybe specify amplitude damping and dephasing separately
-        noise_model.add_quantum_error(errors_measure[j], "measure", [j])
-        noise_model.add_quantum_error(errors_u1[j], "rz", [j])
-        noise_model.add_quantum_error(errors_u2[j], "sx", [j])
-        # noise_model.add_quantum_error(errors_u3[j], "x", [j])
-        noise_model.add_quantum_error(sx_gate_overrotation_error, ['sx'], [j], warnings=False)
-        noise_model.add_quantum_error(sx_gate_detuning_error, ['sx'], [j], warnings=False)
-        noise_model.add_quantum_error(depolarizing_error(0.0005,1), ['sx'], [j], warnings=False)
-        noise_model.add_quantum_error(errors_u2[j], "id", [j])
-        #add detuning error maybe tlak to abhishek
-        for k in range(num_qubits):
-            noise_model.add_quantum_error(errors_cx[j][k], "cx", [j, k])
-            noise_model.add_quantum_error(depolarizing_error(0.005,2), ["cx"], [j, k], warnings=False)
-            noise_model.add_quantum_error(coherent_unitary_2q_error, ["cx"], [j, k], warnings=False)
-            noise_model.add_quantum_error(zz_2q_error, ["cx"], [j, k], warnings=False)
-
-    return noise_model, CustomNmClass
-
-def random_noise_model(num_qubits = 4, seed = 0):
-
-    np.random.seed(seed)
-
-    T1s = np.random.normal(50e3, 1e3, num_qubits) # Sampled from normal distribution mean 50 microsec
-    T2s = np.random.normal(70e3, 1e3, num_qubits)  # Sampled from normal distribution mean 50 microsec
-
-    # Truncate random T2s <= T1s
-    T2s = np.array([min(T2s[j], 2 * T1s[j]) for j in range(num_qubits)])
-
-
-    # Instruction times (in nanoseconds)
-    time_rz = 0   # virtual gate
-    time_sx = 50  # (single X90 pulse)
-    time_x = 100 # (two X90 pulses)
-    time_cx = 300
-    time_reset = 1000  # 1 microsecond
-    time_measure = 1000 # 1 microsecond
-
-
-    # QuantumError objects
-    errors_reset = [thermal_relaxation_error(t1, t2, time_reset)
-                    for t1, t2 in zip(T1s, T2s)]
-    errors_measure = [thermal_relaxation_error(t1, t2, time_measure)
-                    for t1, t2 in zip(T1s, T2s)]
-    errors_u1  = [thermal_relaxation_error(t1, t2, time_rz)
-                for t1, t2 in zip(T1s, T2s)]
-    errors_u2  = [thermal_relaxation_error(t1, t2, time_sx)
-                for t1, t2 in zip(T1s, T2s)]
-    errors_u3  = [thermal_relaxation_error(t1, t2, time_x)
-                for t1, t2 in zip(T1s, T2s)]
-    errors_cx = [[thermal_relaxation_error(t1a, t2a, time_cx).expand(
-                thermal_relaxation_error(t1b, t2b, time_cx))
-                for t1a, t2a in zip(T1s, T2s)]
-                for t1b, t2b in zip(T1s, T2s)]
-
-    noise_model = NoiseModel()
-
-    detuning_mean = 0.0
-    detuning_std = np.pi/150          # ~1.2 degrees std dev
-    overrotation_mean = 0.0           
-    overrotation_std = np.pi/100      # ~1.8 degrees std dev
-
-    overrotation_amount = np.random.normal(overrotation_mean, overrotation_std)
-    detuning_amount = np.random.normal(detuning_mean, detuning_std)
-    overrotation_unitary_1q = RXGate(overrotation_amount).to_matrix()
-    detuning_unitary_1q = RZGate(detuning_amount).to_matrix()
-    sx_gate_overrotation_error = coherent_unitary_error(overrotation_unitary_1q)
-    sx_gate_detuning_error = coherent_unitary_error(detuning_unitary_1q)
-
-    coherent_unitary_2q = RZXGate(overrotation_amount).to_matrix()
-    zz_unitary_2q = RZZGate(overrotation_amount).to_matrix()
-    coherent_unitary_2q_error = coherent_unitary_error(coherent_unitary_2q)
-    zz_2q_error = coherent_unitary_error(zz_unitary_2q)
-
-
-    # Add errors to noise model
-    noise_model = NoiseModel()
-    for j in range(num_qubits):
-        noise_model.add_quantum_error(errors_reset[j], "reset", [j]) # maybe specify amplitude damping and dephasing separately
-        noise_model.add_quantum_error(errors_measure[j], "measure", [j])
-        noise_model.add_quantum_error(errors_u1[j], "rz", [j])
-        noise_model.add_quantum_error(errors_u2[j], "sx", [j])
-        # noise_model.add_quantum_error(errors_u3[j], "x", [j])
-        noise_model.add_quantum_error(sx_gate_overrotation_error, ['sx'], [j], warnings=False)
-        noise_model.add_quantum_error(sx_gate_detuning_error, ['sx'], [j], warnings=False)
-        noise_model.add_quantum_error(depolarizing_error(0.0005,1), ['sx'], [j], warnings=False)
-        noise_model.add_quantum_error(errors_u2[j], "id", [j])
-        #add detuning error maybe tlak to abhishek
-        for k in range(num_qubits):
-            noise_model.add_quantum_error(errors_cx[j][k], "cx", [j, k])
-            noise_model.add_quantum_error(depolarizing_error(0.005,2), ["cx"], [j, k], warnings=False)
-            noise_model.add_quantum_error(coherent_unitary_2q_error, ["cx"], [j, k], warnings=False)
-            noise_model.add_quantum_error(zz_2q_error, ["cx"], [j, k], warnings=False)
-
-    return noise_model, CustomNmClass
-
+# Custom noise model implementations are now in _helpers/noise_models/
+# Available types: arrhenius, simple_nm, random_simple_nm

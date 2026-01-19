@@ -32,6 +32,7 @@ class BuilderRegistry:
     
     def register_builder(self, cls: Type[Builder]):
         self.builders[cls.registry_name] = cls
+        return cls
     
     def list_builders(self):
         return list(self.builders.keys())

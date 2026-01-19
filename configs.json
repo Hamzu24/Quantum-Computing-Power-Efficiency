@@ -1,8 +1,9 @@
 {
-  "num_qubits": 9,
+  "num_qubits": 6,
   "circuit_optimisation_level": 3,
-  "optimisation_iterations": 3,
-  "selected_noise_model": "arrhenius",
+  "optimisation_iterations": 10,
+  "max_parallel_circuits": 10,
+  "selected_noise_model": "default",
   "device_tracking": {
     "noiseless_sim": 0,
     "noisy_sim": 2
@@ -21,7 +22,7 @@
   "noise_models": {
     "default": {
       "type": "fake_backend",
-      "name": "tokyo",
+      "name": "sherbrooke",
       "pauli_twirling": false,
       "control_parameters": {
         "temperature": [
@@ -30,7 +31,7 @@
             "mK"
           ],
           [
-            20,
+            15,
             10,
             "mK"
           ]
@@ -44,12 +45,22 @@
       }
     },
     "arrhenius": {
-        "type": "arrhenius",
-        "qubit_frequency_hz": 5000000000,
-        "gate_length": 35e-9,
-        "control_parameters": {
-          "temperature": [[15, "mK"], [15, 10, "mK"]]
-        }
+      "type": "arrhenius",
+      "qubit_frequency_hz": 5000000000,
+      "gate_length": 3.5e-08,
+      "control_parameters": {
+        "temperature": [
+          [
+            15,
+            "mK"
+          ],
+          [
+            15,
+            10,
+            "mK"
+          ]
+        ]
+      }
     }
   }
 }

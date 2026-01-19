@@ -8,11 +8,11 @@ import argparse
 import datetime
 import logging
 import os
-from _helpers.helpers import set_up_logger, read_config, get_num_qubits, set_num_qubits_list, set_circuit_optimisation
-from _helpers.constants import DEFAULT_PATH
+from _helpers.helpers import set_up_logger, read_config, get_num_qubits, set_num_qubits_list, set_circuit_optimisation, extract_metric_name
+from _helpers.constants import DEFAULT_PATH, resolve_metric_path
 from _helpers.registry import submitter_registry
 
-def run_metric(metric_path=DEFAULT_PATH, calculate_consumption=True):
+def run_metric(metric_path=DEFAULT_PATH, calculate_consumption=False):
     runpy.run_path(metric_path, run_name="__main__")
     
     performance = float(os.environ.get('PERF_VALUE')[1:-1])
@@ -53,13 +53,16 @@ if __name__ == "__main__":
                     help='Log to file instead of console')
     args = parser.parse_args()
 
+    # Resolve algorithm name to file path if needed
+    metric_path = resolve_metric_path(args.path)
+
     log_level = getattr(logging, args.log.upper())
     set_up_logger(log_level, args.log_file)
 
     if not args.visual:
         matplotlib.use('Agg')  # Use non-interactive backend
 
-    metric_name = args.path.split('/')[-1].split('.')[0]
+    extract_metric_name(metric_name)
 
     num_qubits_list = set_num_qubits_list()
     set_circuit_optimisation()
@@ -72,4 +75,4 @@ if __name__ == "__main__":
         number of qubits: {num_qubits_list}
          """) 
 
-    run_metric(args.path)
+    run_metric(metric_path)

@@ -19,6 +19,15 @@ def read_config():
     
     return config_data 
 
+def write_config(config_data):
+    CONFIG_PATH = os.environ.get("CONFIG_PATH")
+    try:
+        json_string = json.dumps(config_data, indent=2)
+    except (TypeError, ValueError) as e:
+        raise ValueError(f"Config is not valid JSON: {e}")
+    with open(CONFIG_PATH, 'w') as f:
+        f.write(json_string)
+
 def set_up_logger(log_level: int, log_file: str):
     logging_fmt='%(asctime)s | %(funcName)s:%(lineno)d | %(levelname)s | %(message)s'
 
@@ -145,6 +154,13 @@ def get_basis_gates_from_backend(backend):
         # V1 backends use configuration().basis_gates
         return backend.configuration().basis_gates
 
+def get_max_parallel_from_config(default=10):
+    config_data = read_config()
+    return config_data.get("max_parallel_circuits", default)
+
+
+def extract_metric_name(metric_path: str) -> str:
+    return os.path.splitext(os.path.basename(metric_path))[0]
 
 # NOISE MODEL DISPLAY FUNCTIONS
 

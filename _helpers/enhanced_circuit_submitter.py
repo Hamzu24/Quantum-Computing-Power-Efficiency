@@ -226,7 +226,8 @@ class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
         if self.nm_backend is None:
             return NoiselessSimBasisGates
 
-        if self.nm_backend.version == -1: # -1 represents a custom noise model, not from a fake backend
+        # Handle custom noise model marker class (version=-1)
+        if hasattr(self.nm_backend, 'version') and self.nm_backend.version == -1:
             return self.nm_backend.basis_gates
 
         return get_basis_gates_from_backend(self.nm_backend)

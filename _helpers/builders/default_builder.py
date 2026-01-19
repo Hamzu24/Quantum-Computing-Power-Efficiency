@@ -9,6 +9,7 @@ from _helpers.helpers import get_config_value
 from _helpers.registry import optimiser_registry
 from scipy.optimize import minimize_scalar
 
+@builder_registry.register_builder
 class DefaultBuilder:
     registry_name = "DefaultBuilder"
     def __init__(self, name: str, config: dict, jm: JsonManager, init_control_parameters: dict={"temperature": [13, "mK"]}):
@@ -289,5 +290,3 @@ class DefaultBuilder:
         logging.debug("\nSucessfully optimised both parameters\n")
 
         optimiser_registry.store_optimisation(self.name, self.__class__, self.config)
-
-builder_registry.register_builder(DefaultBuilder)
