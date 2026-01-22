@@ -1,8 +1,6 @@
+import logging
 from qiskit_ibm_runtime.fake_provider import (
-    FakeAuckland, FakeGeneva, FakeKolkataV2, FakeManilaV2,
-    FakeMontrealV2, FakeOslo, FakePerth, FakePrague,
-    FakeSherbrooke, FakeTokyo, FakeWashingtonV2, FakeBrooklynV2,
-    FakeManhattanV2
+    FakeAlmadenV2, FakeArmonkV2, FakeAthensV2, FakeAuckland, FakeBelemV2, FakeBoeblingenV2, FakeBogotaV2, FakeBrooklynV2, FakeBurlingtonV2, FakeCairoV2, FakeCambridgeV2, FakeCasablancaV2, FakeEssexV2, FakeGeneva, FakeGuadalupeV2, FakeHanoiV2, FakeJakartaV2, FakeJohannesburgV2, FakeKolkataV2, FakeLagosV2, FakeLimaV2, FakeLondonV2, FakeManhattanV2, FakeManilaV2, FakeMelbourneV2, FakeMontrealV2, FakeMumbaiV2, FakeNairobiV2, FakeOslo, FakeOurenseV2, FakeParisV2, FakePerth, FakePoughkeepsieV2, FakePrague, FakeQuitoV2, FakeRochesterV2, FakeRomeV2, FakeRueschlikon, FakeSantiagoV2, FakeSherbrooke, FakeSingaporeV2, FakeSydneyV2, FakeTenerife, FakeTokyo, FakeTorontoV2, FakeValenciaV2, FakeVigoV2, FakeWashingtonV2, FakeYorktownV2,
 )
 
 DEFAULT_PATH = "tutorials/circuit_execution_quality_metrics/quantum_volume/quantum_volume.py"
@@ -13,77 +11,19 @@ ALGORITHM_PATHS = {
     # Circuit execution quality metrics
     "quantum_volume": "tutorials/circuit_execution_quality_metrics/quantum_volume/quantum_volume.py",
     "qv": "tutorials/circuit_execution_quality_metrics/quantum_volume/quantum_volume.py",
-
-    # Algorithmic qubits - Qiskit implementations (default)
-    "amplitude_estimation": "tutorials/circuit_execution_quality_metrics/algorithmic_qubits/code/amplitude-estimation/qiskit/ae_benchmark.py",
-    "ae": "tutorials/circuit_execution_quality_metrics/algorithmic_qubits/code/amplitude-estimation/qiskit/ae_benchmark.py",
-
-    "bernstein_vazirani": "tutorials/circuit_execution_quality_metrics/algorithmic_qubits/code/bernstein-vazirani/qiskit/bv_benchmark.py",
-    "bv": "tutorials/circuit_execution_quality_metrics/algorithmic_qubits/code/bernstein-vazirani/qiskit/bv_benchmark.py",
-
-    "deutsch_jozsa": "tutorials/circuit_execution_quality_metrics/algorithmic_qubits/code/deutsch-jozsa/qiskit/dj_benchmark.py",
-    "dj": "tutorials/circuit_execution_quality_metrics/algorithmic_qubits/code/deutsch-jozsa/qiskit/dj_benchmark.py",
-
-    "grovers": "tutorials/circuit_execution_quality_metrics/algorithmic_qubits/code/grovers/qiskit/grovers_benchmark.py",
-    "grover": "tutorials/circuit_execution_quality_metrics/algorithmic_qubits/code/grovers/qiskit/grovers_benchmark.py",
-
-    "hamiltonian_simulation": "tutorials/circuit_execution_quality_metrics/algorithmic_qubits/code/hamiltonian-simulation/qiskit/hamiltonian_simulation_benchmark.py",
-    "ham_sim": "tutorials/circuit_execution_quality_metrics/algorithmic_qubits/code/hamiltonian-simulation/qiskit/hamiltonian_simulation_benchmark.py",
-
-    "hidden_shift": "tutorials/circuit_execution_quality_metrics/algorithmic_qubits/code/hidden-shift/qiskit/hs_benchmark.py",
-    "hs": "tutorials/circuit_execution_quality_metrics/algorithmic_qubits/code/hidden-shift/qiskit/hs_benchmark.py",
-
-    "monte_carlo": "tutorials/circuit_execution_quality_metrics/algorithmic_qubits/code/monte-carlo/qiskit/mc_benchmark.py",
-    "mc": "tutorials/circuit_execution_quality_metrics/algorithmic_qubits/code/monte-carlo/qiskit/mc_benchmark.py",
-
-    "phase_estimation": "tutorials/circuit_execution_quality_metrics/algorithmic_qubits/code/phase-estimation/qiskit/pe_benchmark.py",
-    "pe": "tutorials/circuit_execution_quality_metrics/algorithmic_qubits/code/phase-estimation/qiskit/pe_benchmark.py",
-
-    "quantum_fourier_transform": "tutorials/circuit_execution_quality_metrics/algorithmic_qubits/code/quantum-fourier-transform/qiskit/qft_benchmark.py",
-    "qft": "tutorials/circuit_execution_quality_metrics/algorithmic_qubits/code/quantum-fourier-transform/qiskit/qft_benchmark.py",
-
-    "shors": "tutorials/circuit_execution_quality_metrics/algorithmic_qubits/code/shors/qiskit/shors_benchmark.py",
-    "shor": "tutorials/circuit_execution_quality_metrics/algorithmic_qubits/code/shors/qiskit/shors_benchmark.py",
-
-    "vqe": "tutorials/circuit_execution_quality_metrics/algorithmic_qubits/code/vqe/qiskit/vqe_benchmark.py",
-
-    # Gate execution quality metrics
-    "cycle_benchmarking": "tutorials/gate_execution_quality_metrics/cycle_benchmarking_composite_process_fidelity/cycle_benchmarking_composite_process_fidelity.py",
-    "cb": "tutorials/gate_execution_quality_metrics/cycle_benchmarking_composite_process_fidelity/cycle_benchmarking_composite_process_fidelity.py",
-
-    "randomized_benchmarking": "tutorials/gate_execution_quality_metrics/randomized_benchmarking/rb.py",
-    "rb": "tutorials/gate_execution_quality_metrics/randomized_benchmarking/rb.py",
-
-    "gst": "tutorials/gate_execution_quality_metrics/gst_based_gate_execution_quality_metrics/run_gst_circuits.py",
-
-    # Qubit quality metrics
-    "t1": "tutorials/qubit_quality_metrics/t1/braket_device_t1.py",
-
-    # Well-studied task metrics
-    "qft_task": "tutorials/well_studied_task_execution_quality_metrics/qft/qft.py",
-    "vqe_task": "tutorials/well_studied_task_execution_quality_metrics/vqe/vqe.py",
+    "grovers_search": "tutorials/circuit_execution_quality_metrics/grovers_search/grovers_search.py",
+    "grover": "tutorials/circuit_execution_quality_metrics/grovers_search/grovers_search.py",
+    "vqe": "tutorials/well_studied_task_execution_quality_metrics/vqe/vqe.py",
+    "stim_test": "tutorials/qec_metrics/simple_stim_test/simple_stim_test.py"
 }
 
 
 def resolve_metric_path(path_or_name: str) -> str:
-    """
-    Resolve a metric path from either an algorithm name or a file path.
-
-    Args:
-        path_or_name: Either a short algorithm name (e.g., 'quantum_volume', 'qv')
-                      or a full file path
-
-    Returns:
-        The resolved file path
-
-    Raises:
-        ValueError: If the algorithm name is not found and it's not a valid path
-    """
-    # Check if it's a known algorithm name
     if path_or_name in ALGORITHM_PATHS:
         return ALGORITHM_PATHS[path_or_name]
+    logging.warning("Didn't find the path name in ALGORITHM_PATHS, assume the input was a path already")
 
-    # Otherwise, assume it's a file path and return as-is
+    # Assume it's a file path and return as is
     return path_or_name
 
 SIMULATION_METHOD = "density_matrix"
@@ -91,23 +31,59 @@ SIMULATION_METHOD = "density_matrix"
 HARDWARE_CONFIG_GROUPS = {
     "modern": ("default", "sherbrooke"),
     "intermediate": (),
-    "legacy": ("oslo")
+    "legacy": ()
 }
 
 EXISTING_MODELS = {
+    "fakeAlmadenV2": FakeAlmadenV2,
+    "fakeArmonkV2": FakeArmonkV2,
+    "fakeAthensV2": FakeAthensV2,
     "fakeAuckland": FakeAuckland,
-    "fakeGeneva": FakeGeneva,
-    "fakeKolkataV2": FakeKolkataV2,
-    "fakeManilaV2": FakeManilaV2,
-    "fakeMontrealV2": FakeMontrealV2,
-    "fakeOslo": FakeOslo,
-    "fakePerth": FakePerth,
-    "fakePrague": FakePrague,
-    "fakeSherbrooke": FakeSherbrooke,
-    "fakeTokyo": FakeTokyo,
-    "fakeWashingtonV2": FakeWashingtonV2,
+    "fakeBelemV2": FakeBelemV2,
+    "fakeBoeblingenV2": FakeBoeblingenV2,
+    "fakeBogotaV2": FakeBogotaV2,
     "fakeBrooklynV2": FakeBrooklynV2,
-    "fakeManhattanV2": FakeManhattanV2
+    "fakeBurlingtonV2": FakeBurlingtonV2,
+    "fakeCairoV2": FakeCairoV2,
+    "fakeCambridgeV2": FakeCambridgeV2,
+    "fakeCasablancaV2": FakeCasablancaV2,
+    "fakeEssexV2": FakeEssexV2,
+    "fakeGeneva": FakeGeneva,
+    "fakeGuadalupeV2": FakeGuadalupeV2,
+    "fakeHanoiV2": FakeHanoiV2,
+    "fakeJakartaV2": FakeJakartaV2,
+    "fakeJohannesburgV2": FakeJohannesburgV2,
+    "fakeKolkataV2": FakeKolkataV2,
+    "fakeLagosV2": FakeLagosV2,
+    "fakeLimaV2": FakeLimaV2,
+    "fakeLondonV2": FakeLondonV2,
+    "fakeManhattanV2": FakeManhattanV2,
+    "fakeManilaV2": FakeManilaV2,
+    "fakeMelbourneV2": FakeMelbourneV2,
+    "fakeMontrealV2": FakeMontrealV2,
+    "fakeMumbaiV2": FakeMumbaiV2,
+    "fakeNairobiV2": FakeNairobiV2,
+    "fakeOslo": FakeOslo,
+    "fakeOurenseV2": FakeOurenseV2,
+    "fakeParisV2": FakeParisV2,
+    "fakePerth": FakePerth,
+    "fakePoughkeepsieV2": FakePoughkeepsieV2,
+    "fakePrague": FakePrague,
+    "fakeQuitoV2": FakeQuitoV2,
+    "fakeRochesterV2": FakeRochesterV2,
+    "fakeRomeV2": FakeRomeV2,
+    "fakeRueschlikon": FakeRueschlikon,
+    "fakeSantiagoV2": FakeSantiagoV2,
+    "fakeSherbrooke": FakeSherbrooke,
+    "fakeSingaporeV2": FakeSingaporeV2,
+    "fakeSydneyV2": FakeSydneyV2,
+    "fakeTenerife": FakeTenerife,
+    "fakeTokyo": FakeTokyo,
+    "fakeTorontoV2": FakeTorontoV2,
+    "fakeValenciaV2": FakeValenciaV2,
+    "fakeVigoV2": FakeVigoV2,
+    "fakeWashingtonV2": FakeWashingtonV2,
+    "fakeYorktownV2": FakeYorktownV2,
 }
 
 DEFAULT_INSTRUCTION_TIMES = {
@@ -156,55 +132,56 @@ DefaultBasisGates2qb = ['cx']
 
 # Virtual/noiseless gates - no physical operation, just software frame changes
 NOISELESS_GATES = {
-    'rz',       # Z rotation (virtual)
-    'p',        # Phase gate (virtual)
-    'u1',       # U1 gate (equivalent to p, virtual)
-    's',        # S gate = sqrt(Z) (virtual)
-    'sdg',      # S-dagger (virtual)
-    't',        # T gate = sqrt(S) (virtual)
-    'tdg',      # T-dagger (virtual)
-    'z',        # Pauli Z (virtual)
-    'id',       # Identity (no operation)
-    'barrier',  # Barrier (compiler directive, not a gate)
-    'delay',    # Delay (no active operation, but has decoherence)
+    'rz',
+    'p',
+    'u1'
+    's'
+    'sdg'
+    't',
+    'tdg'
+    'z',
+    'id'
+    'barrier'
+    'delay',    # Delay (no active operation,
 }
 
 # All single-qubit gates
 SINGLE_QUBIT_GATES = {
-    # Pauli gates
     'x', 'y', 'z',
-    # Hadamard
     'h',
-    # Phase gates
     's', 'sdg', 't', 'tdg', 'p', 'u1',
-    # Rotation gates
     'rx', 'ry', 'rz', 'r',
-    # General unitary gates
     'u', 'u2', 'u3',
-    # Square root gates
     'sx', 'sxdg',
-    # Identity
     'id',
-    # Measurement and reset (single-qubit operations)
     'reset', 'measure',
 }
 
 # All two-qubit gates
 TWO_QUBIT_GATES = {
-    # Controlled Paulis
     'cx', 'cy', 'cz',
-    # Controlled phase gates
     'cp', 'cu1', 'cs', 'csdg', 'csx',
-    # Controlled rotations
     'crx', 'cry', 'crz',
-    # Controlled unitaries
     'cu', 'cu2', 'cu3', 'ch',
-    # SWAP family
     'swap', 'iswap',
-    # Two-qubit rotations (Ising-type)
     'rxx', 'ryy', 'rzz', 'rzx',
-    # Hardware-native gates
-    'ecr',      # Echoed cross-resonance (IBM)
-    'cz',       # Controlled-Z (common native gate)
-    'dcx',      # Double CNOT
+    'ecr',
+    'cz',
+    'dcx',
 }
+
+# =============================================================================
+# Stim Stabilizer Simulation (QEC Metrics)
+# =============================================================================
+
+# Metrics that use Stim stabilizer simulator for QEC benchmarks.
+# QEC metrics are written directly in Stim and use StimCircuitSubmitter.
+# Add metric names here as QEC metrics are created.
+CLIFFORD_METRICS = [
+    "stim_test"
+]
+
+# Basis gates for Stim stabilizer simulation, matching superconducting hardware.
+# Uses the same native gate set as real IBM devices (sx, x, rz, cx).
+# All Clifford gates decompose into these (e.g., H = RZ·SX·RZ, S = RZ(π/2)).
+StimBasisGates = DefaultBasisGates1qb + DefaultBasisGates2qb + DefaultBasisGatesNoiseless

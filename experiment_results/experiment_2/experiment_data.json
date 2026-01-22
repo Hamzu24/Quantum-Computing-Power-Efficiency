@@ -1,0 +1,178 @@
+{
+  "experiment_number": 2,
+  "metric": "quantum_volume",
+  "total_trials": 4,
+  "failed_trials": 1,
+  "combined_plot_path": "experiment_results/experiment_2/Experiment 2: quantum_volume.png",
+  "trials": {
+    "4qb, fake_backend (tokyo)": {
+      "trial_number": 0,
+      "params": {
+        "run_type": "optimiser",
+        "metric": "quantum_volume",
+        "num_qubits": 4,
+        "optimisation_iterations": 12,
+        "noise_model_type": "fake_backend",
+        "noise_model_name": "tokyo",
+        "control_parameters": {
+          "temperature": [
+            [
+              40,
+              "mK"
+            ],
+            [
+              13,
+              5,
+              "mK"
+            ]
+          ]
+        }
+      },
+      "metric": "quantum_volume",
+      "performances": [
+        0.6309245889999999,
+        0.630924587,
+        0.630924587,
+        0.630924586,
+        0.630924582,
+        0.630924551,
+        0.630923922,
+        0.630916657,
+        0.6308632049999999,
+        0.630590369,
+        0.629538622,
+        0.62631242
+      ],
+      "temperatures": [
+        0.013000000000000001,
+        0.018000000000000002,
+        0.023,
+        0.028,
+        0.033,
+        0.038,
+        0.043000000000000003,
+        0.048,
+        0.053,
+        0.058,
+        0.063,
+        0.068
+      ],
+      "plot_path": "experiment_results/experiment_2/trials/trial0_quantum_volume_4qb, fake_backend (tokyo).png",
+      "duration_seconds": 746.67751,
+      "timestamp": "2026-01-19T03:51:27.580331"
+    },
+    "6qb, fake_backend (tokyo)": {
+      "trial_number": 1,
+      "params": {
+        "run_type": "optimiser",
+        "metric": "quantum_volume",
+        "num_qubits": 6,
+        "optimisation_iterations": 12,
+        "noise_model_type": "fake_backend",
+        "noise_model_name": "tokyo",
+        "control_parameters": {
+          "temperature": [
+            [
+              40,
+              "mK"
+            ],
+            [
+              13,
+              5,
+              "mK"
+            ]
+          ]
+        }
+      },
+      "metric": "quantum_volume",
+      "performances": [
+        0.5604730450000001,
+        0.560473042,
+        0.560473041,
+        0.560473041,
+        0.560473071,
+        0.5604730219999999,
+        0.560472508,
+        0.5604667769999999,
+        0.560424499,
+        0.56020874,
+        0.5593811949999999,
+        0.556881009
+      ],
+      "temperatures": [
+        0.013000000000000001,
+        0.018000000000000002,
+        0.023,
+        0.028,
+        0.033,
+        0.038,
+        0.043000000000000003,
+        0.048,
+        0.053,
+        0.058,
+        0.063,
+        0.068
+      ],
+      "plot_path": "experiment_results/experiment_2/trials/trial1_quantum_volume_6qb, fake_backend (tokyo).png",
+      "duration_seconds": 815.713427,
+      "timestamp": "2026-01-19T04:03:54.328007"
+    },
+    "10qb, fake_backend (tokyo)": {
+      "trial_number": 3,
+      "params": {
+        "run_type": "optimiser",
+        "metric": "quantum_volume",
+        "num_qubits": 10,
+        "optimisation_iterations": 12,
+        "noise_model_type": "fake_backend",
+        "noise_model_name": "tokyo",
+        "control_parameters": {
+          "temperature": [
+            [
+              40,
+              "mK"
+            ],
+            [
+              13,
+              5,
+              "mK"
+            ]
+          ]
+        }
+      },
+      "metric": "quantum_volume",
+      "performances": [
+        0.500745003,
+        0.500745021,
+        0.50074511,
+        0.5007451999999999,
+        0.5007451330000001,
+        0.5007449629999999,
+        0.5007448680000001,
+        0.5007454189999999,
+        0.500083776,
+        0.4999673309999998,
+        0.499968989,
+        0.49997039799999987
+      ],
+      "temperatures": [
+        0.013000000000000001,
+        0.018000000000000002,
+        0.023,
+        0.028,
+        0.033,
+        0.038,
+        0.043000000000000003,
+        0.048,
+        0.053,
+        0.058,
+        0.063,
+        0.068
+      ],
+      "plot_path": "experiment_results/experiment_2/trials/trial3_quantum_volume_10qb, fake_backend (tokyo).png",
+      "duration_seconds": 841.750827,
+      "timestamp": "2026-01-19T04:23:00.934696"
+    }
+  },
+  "timestamp": "2026-01-19T04:37:02.880659"
+}

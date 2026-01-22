@@ -1,0 +1,9 @@
+{
+  "experiment_number": 17,
+  "metric": "vqe",
+  "total_trials": 3,
+  "failed_trials": 3,
+  "combined_plot_path": "experiment_results/experiment_17/Experiment 17: vqe.png",
+  "trials": {},
+  "timestamp": "2026-01-19T10:11:28.131671"
+}

@@ -1,0 +1,178 @@
+{
+  "experiment_number": 10,
+  "metric": "quantum_volume",
+  "total_trials": 3,
+  "failed_trials": 0,
+  "combined_plot_path": "experiment_results/experiment_10/Experiment 10: quantum_volume.png",
+  "trials": {
+    "4qb, fake_backend (sherbrooke)": {
+      "trial_number": 0,
+      "params": {
+        "run_type": "optimiser",
+        "metric": "quantum_volume",
+        "num_qubits": 4,
+        "optimisation_iterations": 12,
+        "noise_model_type": "fake_backend",
+        "noise_model_name": "sherbrooke",
+        "control_parameters": {
+          "temperature": [
+            [
+              40,
+              "mK"
+            ],
+            [
+              13,
+              5,
+              "mK"
+            ]
+          ]
+        }
+      },
+      "metric": "quantum_volume",
+      "performances": [
+        0.8157843449999999,
+        0.8150515249999999,
+        0.8141702320000002,
+        0.8132088569999999,
+        0.8122017249999999,
+        0.811167163,
+        0.810115165,
+        0.8090465829999998,
+        0.8079295240000001,
+        0.806609451,
+        0.804579875,
+        0.8005501970000001
+      ],
+      "temperatures": [
+        0.013000000000000001,
+        0.018000000000000002,
+        0.023,
+        0.028,
+        0.033,
+        0.038,
+        0.043000000000000003,
+        0.048,
+        0.053,
+        0.058,
+        0.063,
+        0.068
+      ],
+      "plot_path": "experiment_results/experiment_10/trials/trial0_quantum_volume_4qb, fake_backend (sherbrooke).png",
+      "duration_seconds": 1446.274423,
+      "timestamp": "2026-01-19T07:41:03.064343"
+    },
+    "4qb, fake_backend (geneva)": {
+      "trial_number": 1,
+      "params": {
+        "run_type": "optimiser",
+        "metric": "quantum_volume",
+        "num_qubits": 4,
+        "optimisation_iterations": 12,
+        "noise_model_type": "fake_backend",
+        "noise_model_name": "geneva",
+        "control_parameters": {
+          "temperature": [
+            [
+              40,
+              "mK"
+            ],
+            [
+              13,
+              5,
+              "mK"
+            ]
+          ]
+        }
+      },
+      "metric": "quantum_volume",
+      "performances": [
+        0.7877295450000001,
+        0.7869438799999999,
+        0.7860041399999999,
+        0.7849820070000001,
+        0.783913242,
+        0.7828167869999999,
+        0.7817027009999999,
+        0.780568394,
+        0.779358536,
+        0.7778160210000001,
+        0.775105573,
+        0.7691256279999998
+      ],
+      "temperatures": [
+        0.013000000000000001,
+        0.018000000000000002,
+        0.023,
+        0.028,
+        0.033,
+        0.038,
+        0.043000000000000003,
+        0.048,
+        0.053,
+        0.058,
+        0.063,
+        0.068
+      ],
+      "plot_path": "experiment_results/experiment_10/trials/trial1_quantum_volume_4qb, fake_backend (geneva).png",
+      "duration_seconds": 532.167508,
+      "timestamp": "2026-01-19T08:05:09.415129"
+    },
+    "4qb, fake_backend (auckland)": {
+      "trial_number": 2,
+      "params": {
+        "run_type": "optimiser",
+        "metric": "quantum_volume",
+        "num_qubits": 4,
+        "optimisation_iterations": 12,
+        "noise_model_type": "fake_backend",
+        "noise_model_name": "auckland",
+        "control_parameters": {
+          "temperature": [
+            [
+              40,
+              "mK"
+            ],
+            [
+              13,
+              5,
+              "mK"
+            ]
+          ]
+        }
+      },
+      "metric": "quantum_volume",
+      "performances": [
+        0.7764056170000001,
+        0.773267534,
+        0.769466569,
+        0.7653633190000001,
+        0.761124608,
+        0.756818336,
+        0.752493986,
+        0.7481678230000002,
+        0.743768443,
+        0.7389134199999999,
+        0.73234683,
+        0.7210542530000003
+      ],
+      "temperatures": [
+        0.013000000000000001,
+        0.018000000000000002,
+        0.023,
+        0.028,
+        0.033,
+        0.038,
+        0.043000000000000003,
+        0.048,
+        0.053,
+        0.058,
+        0.063,
+        0.068
+      ],
+      "plot_path": "experiment_results/experiment_10/trials/trial2_quantum_volume_4qb, fake_backend (auckland).png",
+      "duration_seconds": 445.538387,
+      "timestamp": "2026-01-19T08:14:01.656918"
+    }
+  },
+  "timestamp": "2026-01-19T08:21:27.385395"
+}

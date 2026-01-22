@@ -144,6 +144,45 @@ class DensityMatrixIdealSimulatorHelper(AwsBackendHelper):
         return 0, 0
 
 
+class StimStabilizerHelper(AwsBackendHelper):
+    """
+    Backend helper for Stim stabilizer simulator.
+
+    Used for QEC metrics written directly in Stim. Supports Clifford gates only.
+    """
+
+    def __init__(self, pauli_noise_config=None) -> None:
+        super().__init__()
+        from _helpers.stim_simulator_wrapper import StimSimWrapper
+
+        self.device = StimSimWrapper(pauli_noise_config=pauli_noise_config)
+        self.name = "stim_sim"
+        self._pauli_noise_config = pauli_noise_config
+
+    def get_device_calibration(self):
+        return "Stim stabilizer simulator (Clifford/QEC circuits only)"
+
+    def get_qiskit_backend(self):
+        # Stim doesn't use Qiskit - raise if called
+        raise NotImplementedError(
+            "Stim backend does not use Qiskit. Use StimCircuitSubmitter "
+            "with stim.Circuit objects instead."
+        )
+
+    def get_basis_gates(self):
+        # Stim supports all Clifford gates natively
+        # Return None since Stim handles gate validation internally
+        return None
+
+    def get_costs(self) -> Tuple[float]:
+        return 0, 0
+
+    def set_noise_config(self, config):
+        """Set Pauli noise configuration for the simulator."""
+        self._pauli_noise_config = config
+        self.device.set_pauli_noise_config(config)
+
+
 class OQCLucyHelper(AwsBackendHelper):
     def __init__(self) -> None:
         super().__init__()
@@ -238,6 +277,8 @@ def get_backend_helper(name: str) -> AwsBackendHelper:
         return NoisySimulatorHelperWithShots()
     elif name == "noiseless_sim":
         return DensityMatrixIdealSimulatorHelper()
+    elif name == "stim_sim":
+        return StimStabilizerHelper()
     elif name == "Lucy":
         raise ValueError(f"{name} Device no longer supported")
         # return OQCLucyHelper()

@@ -18,7 +18,6 @@ import time
 import json
 import gc
 
-
 class CircuitSubmitter():
     """A central interface for individual benchmarks to submit circuits."""
     def __init__(self, benchmark_name: str, device_name: str = "noisy_sim"):

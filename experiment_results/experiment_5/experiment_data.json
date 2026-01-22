@@ -1,0 +1,178 @@
+{
+  "experiment_number": 5,
+  "metric": "grover",
+  "total_trials": 4,
+  "failed_trials": 1,
+  "combined_plot_path": "experiment_results/experiment_5/Experiment 5: grover.png",
+  "trials": {
+    "3qb, fake_backend (rochester)": {
+      "trial_number": 0,
+      "params": {
+        "run_type": "optimiser",
+        "metric": "grover",
+        "num_qubits": 3,
+        "optimisation_iterations": 12,
+        "noise_model_type": "fake_backend",
+        "noise_model_name": "rochester",
+        "control_parameters": {
+          "temperature": [
+            [
+              40,
+              "mK"
+            ],
+            [
+              13,
+              5,
+              "mK"
+            ]
+          ]
+        }
+      },
+      "metric": "grover",
+      "performances": [
+        0.40067212,
+        0.4006720689999998,
+        0.4006720619999999,
+        0.4006720619999999,
+        0.4006720619999999,
+        0.40067193,
+        0.4006698,
+        0.40064571,
+        0.400468347999999,
+        0.399563485999999,
+        0.3960815839999999,
+        0.385458015
+      ],
+      "temperatures": [
+        0.013000000000000001,
+        0.018000000000000002,
+        0.023,
+        0.028,
+        0.033,
+        0.038,
+        0.043000000000000003,
+        0.048,
+        0.053,
+        0.058,
+        0.063,
+        0.068
+      ],
+      "plot_path": "experiment_results/experiment_5/trials/trial0_grover_3qb, fake_backend (rochester).png",
+      "duration_seconds": 1127.862614,
+      "timestamp": "2026-01-19T05:55:20.296142"
+    },
+    "4qb, fake_backend (rochester)": {
+      "trial_number": 1,
+      "params": {
+        "run_type": "optimiser",
+        "metric": "grover",
+        "num_qubits": 4,
+        "optimisation_iterations": 12,
+        "noise_model_type": "fake_backend",
+        "noise_model_name": "rochester",
+        "control_parameters": {
+          "temperature": [
+            [
+              40,
+              "mK"
+            ],
+            [
+              13,
+              5,
+              "mK"
+            ]
+          ]
+        }
+      },
+      "metric": "grover",
+      "performances": [
+        0.10483509,
+        0.104835081,
+        0.10483505,
+        0.104835039,
+        0.104835044,
+        0.10483508,
+        0.10483446,
+        0.1048274899999999,
+        0.104776406,
+        0.1045167929999999,
+        0.103525235,
+        0.100573315
+      ],
+      "temperatures": [
+        0.013000000000000001,
+        0.018000000000000002,
+        0.023,
+        0.028,
+        0.033,
+        0.038,
+        0.043000000000000003,
+        0.048,
+        0.053,
+        0.058,
+        0.063,
+        0.068
+      ],
+      "plot_path": "experiment_results/experiment_5/trials/trial1_grover_4qb, fake_backend (rochester).png",
+      "duration_seconds": 1165.418439,
+      "timestamp": "2026-01-19T06:14:08.232602"
+    },
+    "6qb, fake_backend (rochester)": {
+      "trial_number": 3,
+      "params": {
+        "run_type": "optimiser",
+        "metric": "grover",
+        "num_qubits": 6,
+        "optimisation_iterations": 12,
+        "noise_model_type": "fake_backend",
+        "noise_model_name": "rochester",
+        "control_parameters": {
+          "temperature": [
+            [
+              40,
+              "mK"
+            ],
+            [
+              13,
+              5,
+              "mK"
+            ]
+          ]
+        }
+      },
+      "metric": "grover",
+      "performances": [
+        0.01562,
+        0.01562,
+        0.01562,
+        0.01562,
+        0.01562,
+        0.01562,
+        0.01562,
+        0.01562,
+        0.01562,
+        0.01562,
+        0.01562,
+        0.01562
+      ],
+      "temperatures": [
+        0.013000000000000001,
+        0.018000000000000002,
+        0.023,
+        0.028,
+        0.033,
+        0.038,
+        0.043000000000000003,
+        0.048,
+        0.053,
+        0.058,
+        0.063,
+        0.068
+      ],
+      "plot_path": "experiment_results/experiment_5/trials/trial3_grover_6qb, fake_backend (rochester).png",
+      "duration_seconds": 1570.908867,
+      "timestamp": "2026-01-19T06:39:47.992706"
+    }
+  },
+  "timestamp": "2026-01-19T07:05:59.095163"
+}

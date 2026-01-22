@@ -1,0 +1,234 @@
+{
+  "experiment_number": 1,
+  "metric": "quantum_volume",
+  "total_trials": 4,
+  "failed_trials": 0,
+  "combined_plot_path": "experiment_results/experiment_1/Experiment 1: quantum_volume.png",
+  "trials": {
+    "4qb, fake_backend (montreal)": {
+      "trial_number": 0,
+      "params": {
+        "run_type": "optimiser",
+        "metric": "quantum_volume",
+        "num_qubits": 4,
+        "optimisation_iterations": 12,
+        "noise_model_type": "fake_backend",
+        "noise_model_name": "montreal",
+        "control_parameters": {
+          "temperature": [
+            [
+              40,
+              "mK"
+            ],
+            [
+              13,
+              5,
+              "mK"
+            ]
+          ]
+        }
+      },
+      "metric": "quantum_volume",
+      "performances": [
+        0.7616960910000001,
+        0.758654327,
+        0.7549839970000001,
+        0.751012346,
+        0.7469014250000001,
+        0.742737223,
+        0.738567501,
+        0.734410759,
+        0.7302190279999999,
+        0.725722966,
+        0.7200497659999999,
+        0.711076551
+      ],
+      "temperatures": [
+        0.013000000000000001,
+        0.018000000000000002,
+        0.023,
+        0.028,
+        0.033,
+        0.038,
+        0.043000000000000003,
+        0.048,
+        0.053,
+        0.058,
+        0.063,
+        0.068
+      ],
+      "plot_path": "experiment_results/experiment_1/trials/trial0_quantum_volume_4qb, fake_backend (montreal).png",
+      "duration_seconds": 455.073757,
+      "timestamp": "2026-01-19T03:01:16.715432"
+    },
+    "6qb, fake_backend (montreal)": {
+      "trial_number": 1,
+      "params": {
+        "run_type": "optimiser",
+        "metric": "quantum_volume",
+        "num_qubits": 6,
+        "optimisation_iterations": 12,
+        "noise_model_type": "fake_backend",
+        "noise_model_name": "montreal",
+        "control_parameters": {
+          "temperature": [
+            [
+              40,
+              "mK"
+            ],
+            [
+              13,
+              5,
+              "mK"
+            ]
+          ]
+        }
+      },
+      "metric": "quantum_volume",
+      "performances": [
+        0.708305402,
+        0.703931099,
+        0.698706928,
+        0.69312451,
+        0.687425857,
+        0.6817369550000001,
+        0.6761056149999999,
+        0.670565852,
+        0.665071099,
+        0.6592913930000001,
+        0.6521916699999999,
+        0.641386871
+      ],
+      "temperatures": [
+        0.013000000000000001,
+        0.018000000000000002,
+        0.023,
+        0.028,
+        0.033,
+        0.038,
+        0.043000000000000003,
+        0.048,
+        0.053,
+        0.058,
+        0.063,
+        0.068
+      ],
+      "plot_path": "experiment_results/experiment_1/trials/trial1_quantum_volume_6qb, fake_backend (montreal).png",
+      "duration_seconds": 594.855368,
+      "timestamp": "2026-01-19T03:08:51.860619"
+    },
+    "8qb, fake_backend (montreal)": {
+      "trial_number": 2,
+      "params": {
+        "run_type": "optimiser",
+        "metric": "quantum_volume",
+        "num_qubits": 8,
+        "optimisation_iterations": 12,
+        "noise_model_type": "fake_backend",
+        "noise_model_name": "montreal",
+        "control_parameters": {
+          "temperature": [
+            [
+              40,
+              "mK"
+            ],
+            [
+              13,
+              5,
+              "mK"
+            ]
+          ]
+        }
+      },
+      "metric": "quantum_volume",
+      "performances": [
+        0.580440282,
+        0.5772064499999999,
+        0.5734386669999999,
+        0.5695211170000001,
+        0.5656369860000001,
+        0.56187519,
+        0.558272197,
+        0.55484175,
+        0.551547139,
+        0.5482007,
+        0.5442626960000001,
+        0.5386241439999999
+      ],
+      "temperatures": [
+        0.013000000000000001,
+        0.018000000000000002,
+        0.023,
+        0.028,
+        0.033,
+        0.038,
+        0.043000000000000003,
+        0.048,
+        0.053,
+        0.058,
+        0.063,
+        0.068
+      ],
+      "plot_path": "experiment_results/experiment_1/trials/trial2_quantum_volume_8qb, fake_backend (montreal).png",
+      "duration_seconds": 784.096745,
+      "timestamp": "2026-01-19T03:18:46.791819"
+    },
+    "10qb, fake_backend (montreal)": {
+      "trial_number": 3,
+      "params": {
+        "run_type": "optimiser",
+        "metric": "quantum_volume",
+        "num_qubits": 10,
+        "optimisation_iterations": 12,
+        "noise_model_type": "fake_backend",
+        "noise_model_name": "montreal",
+        "control_parameters": {
+          "temperature": [
+            [
+              40,
+              "mK"
+            ],
+            [
+              13,
+              5,
+              "mK"
+            ]
+          ]
+        }
+      },
+      "metric": "quantum_volume",
+      "performances": [
+        0.5306878939999999,
+        0.528762806,
+        0.526581483,
+        0.5243850599999998,
+        0.5222816160000001,
+        0.520316369,
+        0.518503008,
+        0.516840507,
+        0.515304036,
+        0.5138071110000001,
+        0.512135003,
+        0.509908833
+      ],
+      "temperatures": [
+        0.013000000000000001,
+        0.018000000000000002,
+        0.023,
+        0.028,
+        0.033,
+        0.038,
+        0.043000000000000003,
+        0.048,
+        0.053,
+        0.058,
+        0.063,
+        0.068
+      ],
+      "plot_path": "experiment_results/experiment_1/trials/trial3_quantum_volume_10qb, fake_backend (montreal).png",
+      "duration_seconds": 1176.421623,
+      "timestamp": "2026-01-19T03:31:50.958457"
+    }
+  },
+  "timestamp": "2026-01-19T03:51:27.579102"
+}

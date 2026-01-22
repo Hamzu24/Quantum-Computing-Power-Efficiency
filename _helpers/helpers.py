@@ -13,7 +13,7 @@ def read_config():
         with open(CONFIG_PATH, 'r') as f:
             config_data = json.load(f)
     except FileNotFoundError:
-        raise FileNotFoundError("Power config file not found")
+        raise FileNotFoundError("Config file not found!")
     except json.JSONDecodeError as e:
         raise ValueError(f"Invalid JSON in power config file: {e}")
     
@@ -401,3 +401,153 @@ def _print_summary(info: dict):
         print(f"  Max:  {rates.max():.6e}")
         print(f"  Mean: {rates.mean():.6e}")
         print(f"  Std:  {rates.std():.6e}")
+
+def _infidelity_to_angle_1q(infidelity):
+    """
+    Convert infidelity to rotation angle for single-qubit rotation.
+    
+    For U = exp(-i θ/2 σ) where σ is a Pauli:
+    F = (1 + cos(θ/2)²) / 2
+    infidelity = sin²(θ/2)
+    Therefore: θ = 2 * arcsin(sqrt(infidelity))
+    """
+    infidelity = np.clip(infidelity, 0, 1)
+    return 2 * np.arcsin(np.sqrt(infidelity))
+
+
+def _infidelity_to_angle_2q(infidelity):
+    """
+    Convert infidelity to rotation angle for two-qubit ZZ rotation.
+    
+    For U = exp(-i θ/2 ZZ) on d=4 dimensional system:
+    infidelity ≈ θ²/15 for small θ
+    Therefore: θ ≈ sqrt(15 * infidelity)
+    """
+    infidelity = np.clip(infidelity, 0, 1)
+    return np.sqrt(15 * infidelity)
+
+
+def _single_qubit_coherent_unitary(theta):
+    """
+    Create single-qubit coherent error unitary.
+    
+    Uses a combined rotation that models both amplitude (X) and phase (Z) errors.
+    Rotation is about an axis tilted 45° between X and Z.
+    """
+    theta_x = theta / np.sqrt(2)
+    theta_z = theta / np.sqrt(2)
+    
+    Rx = RXGate(theta_x).to_matrix()
+    Rz = RZGate(theta_z).to_matrix()
+    
+    return Rz @ Rx
+
+
+def _two_qubit_coherent_unitary(theta, model='zz'):
+    """
+    Create two-qubit coherent error unitary.
+
+    Parameters
+    ----------
+    theta : float
+        Rotation angle
+    model : str
+        Error model to use:
+        - 'zz': ZZ rotation (default, appropriate for CR gates on IBM hardware)
+        - 'zx': ZX rotation (CR drive error)
+        - 'xx': XX rotation (ion trap Mølmer-Sørensen gates)
+
+    Returns
+    -------
+    np.ndarray
+        4x4 unitary matrix
+    """
+    if model == 'zz':
+        return RZZGate(theta).to_matrix()
+    elif model == 'zx':
+        return RZXGate(theta).to_matrix()
+    elif model == 'xx':
+        return RXXGate(theta).to_matrix()
+    else:
+        raise ValueError(f"Unknown two-qubit coherent error model: {model}")
+
+
+class BackendPropertiesAdapter:
+    """
+    Adapter class to provide a unified interface for accessing backend properties
+    from both V1 backends (with .properties()) and V2 backends (with .target).
+    """
+
+    def __init__(self, backend):
+        self.backend = backend
+        self._is_v2 = hasattr(backend, 'target') and backend.target is not None
+
+        if self._is_v2:
+            self._target = backend.target
+            self._props = None
+        else:
+            self._target = None
+            self._props = backend.properties()
+
+    def t1(self, qubit: int) -> float:
+        if self._is_v2:
+            qp = self._target.qubit_properties
+            if qp is None or qp[qubit] is None:
+                raise ValueError(f"No qubit properties for qubit {qubit}")
+            return qp[qubit].t1
+        else:
+            return self._props.t1(qubit)
+
+    def t2(self, qubit: int) -> float:
+        if self._is_v2:
+            qp = self._target.qubit_properties
+            if qp is None or qp[qubit] is None:
+                raise ValueError(f"No qubit properties for qubit {qubit}")
+            return qp[qubit].t2
+        else:
+            return self._props.t2(qubit)
+
+    def gate_length(self, gate: str, qubits) -> float:
+        if self._is_v2:
+            if isinstance(qubits, int):
+                qubits = (qubits,)
+            else:
+                qubits = tuple(qubits)
+
+            if gate not in self._target.operation_names:
+                raise ValueError(f"Gate {gate} not in target")
+
+            inst_props = self._target[gate].get(qubits)
+            if inst_props is None:
+                raise ValueError(f"No properties for {gate} on qubits {qubits}")
+            return inst_props.duration
+        else:
+            return self._props.gate_length(gate, qubits)
+
+    def gate_error(self, gate: str, qubits) -> float:
+        if self._is_v2:
+            if isinstance(qubits, int):
+                qubits = (qubits,)
+            else:
+                qubits = tuple(qubits)
+
+            if gate not in self._target.operation_names:
+                raise ValueError(f"Gate {gate} not in target")
+
+            inst_props = self._target[gate].get(qubits)
+            if inst_props is None:
+                raise ValueError(f"No properties for {gate} on qubits {qubits}")
+            return inst_props.error
+        else:
+            return self._props.gate_error(gate, qubits)
+
+    def readout_error(self, qubit: int) -> float:
+        if self._is_v2:
+            # V2 backends store readout error in the measure instruction
+            if 'measure' in self._target.operation_names:
+                inst_props = self._target['measure'].get((qubit,))
+                if inst_props is not None and inst_props.error is not None:
+                    return inst_props.error
+            raise ValueError(f"No readout error for qubit {qubit}")
+        else:
+            return self._props.readout_error(qubit)

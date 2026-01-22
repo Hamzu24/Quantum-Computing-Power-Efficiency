@@ -9,7 +9,8 @@ from _helpers.noise_models.base import (
 )
 from _helpers.constants import (
     DEFAULT_INSTRUCTION_TIMES,
-    DefaultBasisGatesNoiseless, DefaultBasisGates1qb, DefaultBasisGates2qb
+    DefaultBasisGatesNoiseless, DefaultBasisGates1qb, DefaultBasisGates2qb,
+    StimBasisGates
 )
 
 
@@ -195,6 +196,28 @@ class SimpleNoiseModel:
                 )
 
         return noise_model, CustomNoiseModelBackend(self.get_basis_gates())
+
+    def build_pauli(self) -> Tuple[dict, CustomNoiseModelBackend]:
+        """
+        Convert this noise model to Pauli channel config for Stim stabilizer simulation.
+
+        Returns:
+            Tuple of (pauli_config, CustomNoiseModelBackend) where pauli_config has structure:
+                {
+                    '1q': {'p_x': float, 'p_y': float, 'p_z': float},
+                    '2q': {'p_x': float, 'p_y': float, 'p_z': float},
+                    'measurement': {'p_flip': float}
+                }
+        """
+        # TODO: Implement formulas to convert T1/T2/depolarizing errors
+        # to Pauli channel probabilities (p_x, p_y, p_z).
+        # For now, return zero-noise placeholder.
+        pauli_config = {
+            '1q': {'p_x': 0.0, 'p_y': 0.0, 'p_z': 0.0},
+            '2q': {'p_x': 0.0, 'p_y': 0.0, 'p_z': 0.0},
+            'measurement': {'p_flip': 0.0}
+        }
+        return pauli_config, CustomNoiseModelBackend(StimBasisGates)
 
     @classmethod
     def get_basis_gates(cls) -> List[str]:

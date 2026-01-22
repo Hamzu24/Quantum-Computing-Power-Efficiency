@@ -6,7 +6,8 @@ from _helpers.noise_models.base import (
 )
 from _helpers.helpers import get_config_value
 from _helpers.constants import (
-    DefaultBasisGatesNoiseless, DefaultBasisGates1qb, DefaultBasisGates2qb
+    DefaultBasisGatesNoiseless, DefaultBasisGates1qb, DefaultBasisGates2qb,
+    StimBasisGates
 )
 
 
@@ -103,6 +104,28 @@ class ArrheniusNoiseModel:
         noise_model.add_all_qubit_quantum_error(error_2q, DefaultBasisGates2qb)
 
         return noise_model, CustomNoiseModelBackend(self.get_basis_gates())
+
+    def build_pauli(self) -> Tuple[dict, CustomNoiseModelBackend]:
+        """
+        Convert this noise model to Pauli channel config for Stim stabilizer simulation.
+
+        Returns:
+            Tuple of (pauli_config, CustomNoiseModelBackend) where pauli_config has structure:
+                {
+                    '1q': {'p_x': float, 'p_y': float, 'p_z': float},
+                    '2q': {'p_x': float, 'p_y': float, 'p_z': float},
+                    'measurement': {'p_flip': float}
+                }
+        """
+        # TODO: Implement formulas to convert Arrhenius-derived T1/T2 times
+        # to Pauli channel probabilities (p_x, p_y, p_z).
+        # For now, return zero-noise placeholder.
+        pauli_config = {
+            '1q': {'p_x': 0.0, 'p_y': 0.0, 'p_z': 0.0},
+            '2q': {'p_x': 0.0, 'p_y': 0.0, 'p_z': 0.0},
+            'measurement': {'p_flip': 0.0}
+        }
+        return pauli_config, CustomNoiseModelBackend(StimBasisGates)
 
     @classmethod
     def get_basis_gates(cls) -> List[str]:

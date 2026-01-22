@@ -1,0 +1,234 @@
+{
+  "experiment_number": 4,
+  "metric": "grover",
+  "total_trials": 4,
+  "failed_trials": 0,
+  "combined_plot_path": "experiment_results/experiment_4/Experiment 4: grover.png",
+  "trials": {
+    "3qb, fake_backend (cairo)": {
+      "trial_number": 0,
+      "params": {
+        "run_type": "optimiser",
+        "metric": "grover",
+        "num_qubits": 3,
+        "optimisation_iterations": 12,
+        "noise_model_type": "fake_backend",
+        "noise_model_name": "cairo",
+        "control_parameters": {
+          "temperature": [
+            [
+              40,
+              "mK"
+            ],
+            [
+              13,
+              5,
+              "mK"
+            ]
+          ]
+        }
+      },
+      "metric": "grover",
+      "performances": [
+        0.71715478,
+        0.712807415999999,
+        0.70747362,
+        0.70160595,
+        0.695446278,
+        0.689126228,
+        0.682720810999999,
+        0.67626366,
+        0.6697013,
+        0.6626935,
+        0.65410194,
+        0.64104362
+      ],
+      "temperatures": [
+        0.013000000000000001,
+        0.018000000000000002,
+        0.023,
+        0.028,
+        0.033,
+        0.038,
+        0.043000000000000003,
+        0.048,
+        0.053,
+        0.058,
+        0.063,
+        0.068
+      ],
+      "plot_path": "experiment_results/experiment_4/trials/trial0_grover_3qb, fake_backend (cairo).png",
+      "duration_seconds": 382.765337,
+      "timestamp": "2026-01-19T05:15:30.315879"
+    },
+    "4qb, fake_backend (cairo)": {
+      "trial_number": 1,
+      "params": {
+        "run_type": "optimiser",
+        "metric": "grover",
+        "num_qubits": 4,
+        "optimisation_iterations": 12,
+        "noise_model_type": "fake_backend",
+        "noise_model_name": "cairo",
+        "control_parameters": {
+          "temperature": [
+            [
+              40,
+              "mK"
+            ],
+            [
+              13,
+              5,
+              "mK"
+            ]
+          ]
+        }
+      },
+      "metric": "grover",
+      "performances": [
+        0.4713301589999999,
+        0.4645801789999998,
+        0.45642212,
+        0.4475702749999998,
+        0.4384068689999998,
+        0.4291493399999999,
+        0.419930513,
+        0.41077132,
+        0.4016091509999999,
+        0.392026,
+        0.38065289,
+        0.36416144
+      ],
+      "temperatures": [
+        0.013000000000000001,
+        0.018000000000000002,
+        0.023,
+        0.028,
+        0.033,
+        0.038,
+        0.043000000000000003,
+        0.048,
+        0.053,
+        0.058,
+        0.063,
+        0.068
+      ],
+      "plot_path": "experiment_results/experiment_4/trials/trial1_grover_4qb, fake_backend (cairo).png",
+      "duration_seconds": 421.724423,
+      "timestamp": "2026-01-19T05:21:53.157067"
+    },
+    "5qb, fake_backend (cairo)": {
+      "trial_number": 2,
+      "params": {
+        "run_type": "optimiser",
+        "metric": "grover",
+        "num_qubits": 5,
+        "optimisation_iterations": 12,
+        "noise_model_type": "fake_backend",
+        "noise_model_name": "cairo",
+        "control_parameters": {
+          "temperature": [
+            [
+              40,
+              "mK"
+            ],
+            [
+              13,
+              5,
+              "mK"
+            ]
+          ]
+        }
+      },
+      "metric": "grover",
+      "performances": [
+        0.25901088,
+        0.25123754,
+        0.2420078,
+        0.232219263,
+        0.2223371449999999,
+        0.2126004,
+        0.20313326,
+        0.193987758,
+        0.185106617,
+        0.176136841,
+        0.1659949299999999,
+        0.15226867
+      ],
+      "temperatures": [
+        0.013000000000000001,
+        0.018000000000000002,
+        0.023,
+        0.028,
+        0.033,
+        0.038,
+        0.043000000000000003,
+        0.048,
+        0.053,
+        0.058,
+        0.063,
+        0.068
+      ],
+      "plot_path": "experiment_results/experiment_4/trials/trial2_grover_5qb, fake_backend (cairo).png",
+      "duration_seconds": 618.984888,
+      "timestamp": "2026-01-19T05:28:54.952283"
+    },
+    "6qb, fake_backend (cairo)": {
+      "trial_number": 3,
+      "params": {
+        "run_type": "optimiser",
+        "metric": "grover",
+        "num_qubits": 6,
+        "optimisation_iterations": 12,
+        "noise_model_type": "fake_backend",
+        "noise_model_name": "cairo",
+        "control_parameters": {
+          "temperature": [
+            [
+              40,
+              "mK"
+            ],
+            [
+              13,
+              5,
+              "mK"
+            ]
+          ]
+        }
+      },
+      "metric": "grover",
+      "performances": [
+        0.15096213,
+        0.14365862,
+        0.13519403,
+        0.126461217,
+        0.117900015,
+        0.1097340479999999,
+        0.10207431,
+        0.0949002939999999,
+        0.088148655,
+        0.08154814,
+        0.074357932,
+        0.06511452
+      ],
+      "temperatures": [
+        0.013000000000000001,
+        0.018000000000000002,
+        0.023,
+        0.028,
+        0.033,
+        0.038,
+        0.043000000000000003,
+        0.048,
+        0.053,
+        0.058,
+        0.063,
+        0.068
+      ],
+      "plot_path": "experiment_results/experiment_4/trials/trial3_grover_6qb, fake_backend (cairo).png",
+      "duration_seconds": 966.091237,
+      "timestamp": "2026-01-19T05:39:14.008974"
+    }
+  },
+  "timestamp": "2026-01-19T05:55:20.294544"
+}

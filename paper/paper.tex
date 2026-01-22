@@ -12,6 +12,9 @@
 \usepackage{algorithm}
 \usepackage{algpseudocode}
 \usepackage{comment}
+\usepackage{tikz}
+\usepackage{float}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, fit, backgrounds, calc}
 \usepackage[normalem]{ulem}
 
 \newcommand{\tr}{\operatorname{Tr}}
@@ -84,6 +87,8 @@
 \newcommand{\blue}{\textcolor{blue}} %blue text
  
 
+
+
 \begin{document}
 
 
@@ -113,49 +118,127 @@
 
 \section{Introduction}
 
-This will be filled in by Jinzhao.
-
 \section{Simulation Results}
 
-Alongside mathematical simulations, we chose to leverage library simulations of both NISQ era circuits, using full density matrix simulations with standard Qiskit noise models, and FTQC era circuits where we employ clifford gates and Pauli channel noise models to allow for stabiliser state tracking.
-
-\subsection{NISQ results}
-
-Let me go through a brief overview of how results are generated:
+To complement this mathematical approach, we also computed simulations tracking performance on quantum algorithms as we varied temperature as the single control parameter. We computed simulations of both:
 \begin{itemize}[itemsep=1pt]
-	\item The necessary Qiskit QuantumCircuit objects are generated for each algorithm being run. No noise is yet added. These circuits include many trials and many shots of each trial.
-	\item The circuits are transpiled to the relevant basis gates using standard qiskit transpilation and tunable optimisation (default level=3)
-	\item The circuits are ran on a noisy AerSimulator object. Sometimes it is also run on a noiseless AerSimulator for comparison.
-	\item A performance value is obtained from averaging over all shots and trials
+	\item Full quantum circuits, tracking full density matrix representations, allowing us to employ full Qiskit noise models
+	\item Circuits using only Clifford gates, tracking qubit state using stabiliser states and only employing simpler Pauli noise models. This allowed us to simulate much larger numbers of qubits.
 \end{itemize}
 
+\subsection{Design Architecture}
+
+Something to be emphasised is the total modularity of the system we designed to do this. All parameters can be altered and all models can be swapped in and out, providing complete flexibility over how the performance value is computed.
+
+Here is an overview of the system architecture:
+
+\begin{figure}[H]
+	\centering
+	\begin{tikzpicture}[
+		node distance=0.8cm,
+		box/.style={rectangle, draw, rounded corners, minimum width=1.8cm, minimum height=0.6cm, align=center, font=\scriptsize},
+		data/.style={box, fill=gray!20},
+		process/.style={box, fill=blue!20},
+		decision/.style={diamond, draw, fill=yellow!30, minimum width=0.8cm, minimum height=0.8cm, align=center, font=\scriptsize, inner sep=1pt},
+		arrow/.style={-{Stealth[length=2mm]}, thick}
+		]
+		% Top row
+		\node[data] (A) {Control\\Parameters*};
+		% Middle row - aligned horizontally
+		\node[process, below left=1cm and 1cm of A] (B) {Builder*};
+		\node[process, below=0.4cm of B] (G) {Fake Backend*};
+		\node[process, below right=1.75cm and 0.2cm of A] (F) {Basic Noise\\Model Class*};
+		% Hardware Parameters - now above Builder + Fake Backend
+		\node[data, above=0.95cm of B] (C) {Hardware\\Parameters*};
+		% Properties row
+		\node[data, below=0.5cm of G] (D) {Properties/Config};
+		% Decision diamond below Input
+		\node[decision, below=0.3cm of A] (d1) {?$^1$};
+		% Decision diamond below Properties/Config
+		\node[decision, right=1.41cm of D] (d2) {?$^2$};
+		\node[process, below right=1.75cm and 0.24cm of d2] (E) {Output Noise Model};
+		\node[process, left=1.5cm of E] (H) {Run Chosen Metric*};
+		\node[data, above=0.6cm of H] (I) {Other Parameters*};
+		\node[data, below=0.5cm of H] (J) {Performance on Metric};
+		% Arrows
+		\draw[arrow] (C) -- (B);
+		\draw[arrow] (B.west) to[out=180, in=180, looseness=1.5] (G.west);
+		\draw[arrow] (G.east) to[out=0, in=0, looseness=1.5] (B.east);
+		\draw[arrow] (G) -- (D);
+		% Arrow from Input to decision point
+		\draw[arrow] (A) -- (d1);
+		% Arrows from d1 decision point to branches
+		\draw[arrow] (d1) -| (B.north);
+		\draw[arrow] (d1) -| (F.north);
+		% Connection from F to E
+		\draw[arrow] (F) |- (d2);
+		% Arrows from d2 decision point to branches
+		\draw[arrow] (D.east) -- (d2);
+		% Two separate connectors from d2 to Output Noise Model
+		\draw[arrow] (d2.south) |- ++(0,-0.5cm) -| (E.north);
+		% Connect E, H, I, J
+		\draw[arrow] (E) -- (H);
+		\draw[arrow] (I) -- (H);
+		\draw[arrow] (H) -- (J);
+	\end{tikzpicture}
+	\vspace{0.5em}
+	{\scriptsize
+		\\$?^1$: Choose between an IBM Fake Backend or a basic noise model class
+		\\$?^2$: A Pauli noise model is generated if the chosen metric is a Clifford metric. If a full noise model is generated, Pauli twirling can optionally be turned off.
+	}
+	\caption{Dataflow for simulated performance on a quantum algorithm, from control parameters to noise model to performance. All nodes noted with a * are modular and customisable.}
+	\label{fig:dataflow}
+\end{figure}
+
+\subsection{Case Studies}
+
+\subsubsection{Case Study 1: \textbf{Quantum Volume on Legacy Backends}}
+
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[width=0.5\textwidth]{images/experiment-3-grover.png}
+	\caption{Performance on Grover's algorithm using Auckland Fake Backend}
+	\label{fig:myimage}
+\end{figure}
+
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[width=0.5\textwidth]{images/experiment-4-grover.png}
+	\caption{Performance on Grover's algorithm using CairoV2 Fake Backend}
+	\label{fig:myimage}
+\end{figure}
+
+These are both V2, Falcon R5 backends released around late 2021. You can see a stable drop in performance with increased qubit counts.
+
+
+\subsection{Result Validity}
 The validity of these results hinges primarily upon the correctness of the code used to generate them. Thus, we have generated an extensive suite of unit tests to ensure the framework is operating as expected.
 
 Moreover, the validity and applicability of these results further hinges upon the use of correct and properly catalogued assumptions used to generate them. We employ the following to mitigate the risks of compromising these qualities:
 \begin{itemize}[itemsep=1pt]
-	\item The use of a variety of different methods of producing results, including a variety of different algorithms and methods of generating noise models. These methods vary in complexity and specificity, avoiding how many assumptions are universally relied upon.
+	\item The use of a variety of different methods of producing results, including a variety of different metrics and methods of generating noise models. These methods vary in complexity and specificity, avoiding how many assumptions are universally relied upon.
 	\item Comprehensively cataloguing the assumptions used at every stage of generating the results, including how they change for each method of producing results.
 \end{itemize}
 
 To do this, we treat each set of results as a case study. Because there is so much overlap between the assumptions of each case study, we include a set of all set of assumptions in the appendix, and specify which ones apply for each.
 
-Something important to emphasise is the flexibility and customisability of this framework. To fully understand the power
-
-
-Let us now go through the general assumptions that apply to all the case studies below:
+There are a few assumptions that due to the inherent limitations of the simulation architecture universally apply, and are worth pointing out separately:
 
 \begin{itemize}
-	\item All noise models are inherently gate-local (and thus qubit-local)
-	\item All noise models are state independent and unchanging over time
-	\item All noise model are inherently Markovian
+	\item All noise models are inherently gate-local (and thus also qubit-local)
+	\item All noise models are state independent and unchanging over time throughout the whole metric simulation, and every shot and trial of the metric
+	\item All noise models are Markovian
 \end{itemize}
 
 \subsubsection{Case Study 1: \textbf{Quantum Volume, Simple Arrhenius Noise Model}}
 
-The simplest case study, where we use a simple Arrhenius noise model on a simulated quantum volume metric.
-
-Assumption set:
-
+%Let me go through a brief overview of how results are generated:
+%\begin{itemize}[itemsep=1pt]
+%	\item The necessary Qiskit QuantumCircuit objects are generated for each algorithm being run. No noise is yet added. These circuits include many trials and many shots of each trial.
+%	\item The circuits are transpiled to the relevant basis gates using standard qiskit transpilation and tunable optimisation (default level=3)
+%	\item The circuits are ran on a noisy AerSimulator object. Sometimes it is also run on a noiseless AerSimulator for comparison.
+%	\item A performance value is obtained from averaging over all shots and trials
+%\end{itemize}
 
 
 

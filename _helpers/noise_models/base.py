@@ -1,4 +1,4 @@
-from typing import Protocol, ClassVar, Tuple, List, Any, Type
+from typing import Protocol, ClassVar, Tuple, List, Any, Type, Dict
 from qiskit_aer.noise import NoiseModel
 from _helpers.constants import (
     DefaultBasisGatesNoiseless, DefaultBasisGates1qb, DefaultBasisGates2qb
@@ -18,6 +18,23 @@ class NoiseModelFactory(Protocol):
 
     def build(self) -> Tuple[NoiseModel, Any]:
         """Build and return the noise model and backend marker class."""
+        ...
+
+    def build_pauli(self) -> Tuple[Dict, Any]:
+        """
+        Build Pauli noise config for Stim stabilizer simulation.
+
+        Returns:
+            Tuple of (pauli_config, backend_marker) where pauli_config has structure:
+                {
+                    '1q': {'p_x': float, 'p_y': float, 'p_z': float},
+                    '2q': {'p_x': float, 'p_y': float, 'p_z': float},
+                    'measurement': {'p_flip': float}
+                }
+
+        Raises:
+            NotImplementedError: If noise model cannot be converted to Pauli channels.
+        """
         ...
 
     @classmethod

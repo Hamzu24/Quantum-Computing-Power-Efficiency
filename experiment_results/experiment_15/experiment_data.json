@@ -1,0 +1,178 @@
+{
+  "experiment_number": 15,
+  "metric": "quantum_volume",
+  "total_trials": 3,
+  "failed_trials": 0,
+  "combined_plot_path": "experiment_results/experiment_15/Experiment 15: quantum_volume.png",
+  "trials": {
+    "4qb, fake_backend (manhattan)": {
+      "trial_number": 0,
+      "params": {
+        "run_type": "optimiser",
+        "metric": "quantum_volume",
+        "num_qubits": 4,
+        "optimisation_iterations": 12,
+        "noise_model_type": "fake_backend",
+        "noise_model_name": "manhattan",
+        "control_parameters": {
+          "temperature": [
+            [
+              40,
+              "mK"
+            ],
+            [
+              13,
+              5,
+              "mK"
+            ]
+          ]
+        }
+      },
+      "metric": "quantum_volume",
+      "performances": [
+        0.7322568420000001,
+        0.7283012380000001,
+        0.72361115,
+        0.7185905369999999,
+        0.7134413770000001,
+        0.7082733819999999,
+        0.7031429309999999,
+        0.6980801529999999,
+        0.693063066,
+        0.6879435189999998,
+        0.682229363,
+        0.6746862450000001
+      ],
+      "temperatures": [
+        0.013000000000000001,
+        0.018000000000000002,
+        0.023,
+        0.028,
+        0.033,
+        0.038,
+        0.043000000000000003,
+        0.048,
+        0.053,
+        0.058,
+        0.063,
+        0.068
+      ],
+      "plot_path": "experiment_results/experiment_15/trials/trial0_quantum_volume_4qb, fake_backend (manhattan).png",
+      "duration_seconds": 802.153604,
+      "timestamp": "2026-01-19T09:09:42.693942"
+    },
+    "4qb, fake_backend (brooklyn)": {
+      "trial_number": 1,
+      "params": {
+        "run_type": "optimiser",
+        "metric": "quantum_volume",
+        "num_qubits": 4,
+        "optimisation_iterations": 12,
+        "noise_model_type": "fake_backend",
+        "noise_model_name": "brooklyn",
+        "control_parameters": {
+          "temperature": [
+            [
+              40,
+              "mK"
+            ],
+            [
+              13,
+              5,
+              "mK"
+            ]
+          ]
+        }
+      },
+      "metric": "quantum_volume",
+      "performances": [
+        0.6596258599999999,
+        0.657470631,
+        0.654866014,
+        0.652044093,
+        0.6491238499999998,
+        0.6461689700000001,
+        0.643227708,
+        0.6403195720000001,
+        0.637419729,
+        0.634428401,
+        0.631019865,
+        0.626388092
+      ],
+      "temperatures": [
+        0.013000000000000001,
+        0.018000000000000002,
+        0.023,
+        0.028,
+        0.033,
+        0.038,
+        0.043000000000000003,
+        0.048,
+        0.053,
+        0.058,
+        0.063,
+        0.068
+      ],
+      "plot_path": "experiment_results/experiment_15/trials/trial1_quantum_volume_4qb, fake_backend (brooklyn).png",
+      "duration_seconds": 783.37125,
+      "timestamp": "2026-01-19T09:23:04.918238"
+    },
+    "4qb, fake_backend (rochester)": {
+      "trial_number": 2,
+      "params": {
+        "run_type": "optimiser",
+        "metric": "quantum_volume",
+        "num_qubits": 4,
+        "optimisation_iterations": 12,
+        "noise_model_type": "fake_backend",
+        "noise_model_name": "rochester",
+        "control_parameters": {
+          "temperature": [
+            [
+              40,
+              "mK"
+            ],
+            [
+              13,
+              5,
+              "mK"
+            ]
+          ]
+        }
+      },
+      "metric": "quantum_volume",
+      "performances": [
+        0.5647152329999999,
+        0.564715227,
+        0.56471522,
+        0.564715215,
+        0.5647152449999999,
+        0.5647152169999999,
+        0.5647146510000001,
+        0.564708906,
+        0.5646666730000001,
+        0.5644513550000001,
+        0.5636243639999999,
+        0.561116381
+      ],
+      "temperatures": [
+        0.013000000000000001,
+        0.018000000000000002,
+        0.023,
+        0.028,
+        0.033,
+        0.038,
+        0.043000000000000003,
+        0.048,
+        0.053,
+        0.058,
+        0.063,
+        0.068
+      ],
+      "plot_path": "experiment_results/experiment_15/trials/trial2_quantum_volume_4qb, fake_backend (rochester).png",
+      "duration_seconds": 1146.485784,
+      "timestamp": "2026-01-19T09:36:08.366082"
+    }
+  },
+  "timestamp": "2026-01-19T09:55:15.048799"
+}

@@ -7,7 +7,7 @@ from pathlib import Path
 import inspect
 import copy
 from typing import Any
-from qiskit.circuit.library import RZXGate, RZGate, RXGate, RZZGate
+from qiskit.circuit.library import RZXGate, RZGate, RXGate, RZZGate, RXXGate
 from qiskit.quantum_info import Operator, average_gate_fidelity
 from qiskit_aer.noise import (
     NoiseModel,
@@ -23,23 +23,29 @@ from qiskit.providers.models import (
 )
 from _helpers.builders.builder_wrapper import BuilderWrapper
 import logging
-from _helpers.helpers import get_basis_gates_from_backend, get_control_parameters, extract_from_json, get_config_value
+from _helpers.helpers import get_basis_gates_from_backend, get_control_parameters, extract_from_json, get_config_value, _infidelity_to_angle_1q, _infidelity_to_angle_2q, _single_qubit_coherent_unitary, _two_qubit_coherent_unitary, BackendPropertiesAdapter
 from _helpers.constants import (
     EXISTING_MODELS, DEFAULT_INSTRUCTION_TIMES,
     DefaultBasisGatesNoiseless, DefaultBasisGates1qb, DefaultBasisGates2qb,
-    NOISELESS_GATES, SINGLE_QUBIT_GATES, TWO_QUBIT_GATES
+    NOISELESS_GATES, SINGLE_QUBIT_GATES, TWO_QUBIT_GATES,
+    StimBasisGates
 )
+from _helpers.noise_models.base import CustomNoiseModelBackend
 from _helpers.noise_models import noise_model_registry, NoiseModelWrapper
-from typing import Type
+from typing import Type, Tuple
+from json_manager import JsonManager
 
 # Main function
-def craft_noise_model(config: dict):
+def craft_noise_model(config: dict, pauli_mode: bool = False):
     config_type = config.get("type")
     if config_type is None:
         raise ValueError("A noise model must have a type field to be valid!")
 
     # Fake backend noise models are handled outside the registry!
     if config_type == "fake_backend":
+        if pauli_mode:
+            return pauli_nm_from_fake_backend(config)
+
         pauli_twirling = config.get("pauli_twirling", True)
         if pauli_twirling:
             return nm_from_fake_backend(config)
@@ -48,214 +54,74 @@ def craft_noise_model(config: dict):
 
     if config_type in noise_model_registry:
         wrapper = NoiseModelWrapper(config)
+        if pauli_mode:
+            return wrapper.build_pauli()
         return wrapper.build()
 
     raise ValueError(f"Unknown noise model type: {config_type}. "
                      f"Available types: fake_backend, {noise_model_registry.list_factories()}")
-        
-def nm_from_fake_backend(config):
+
+
+def _prepare_fake_backend(config):
     backend_name = config.get("name")
 
     exists = config_exists(backend_name)
     fetch_config_files(backend_name, exit_if_unavailable=exists)
 
-    # Note that below I build the backend from the config files and get the backend class separately
     matching_class = get_backend_class(config, backend_name)
     create_backend_symlinks(config, matching_class)
     build_backend(config, backend_name)
-    control_parameters = get_control_parameters(config)
 
-    # Temperature in from_backend determines the target excitation of the qubits asymptotic drift. This only has a minor effect.
+    backend = matching_class()
+    return backend, backend_name
+
+
+def nm_from_fake_backend(config):
+    backend, backend_name = _prepare_fake_backend(config)
+
+    # Temperature determines the target excitation of qubits' asymptotic drift.
     # 0 is the default value, where the target is just |0>
-
     temperature = get_config_value(config, "temperature")
 
-    # Now, I translate the backend class into a noise model with the correct configuration from the config files
-    # The config files implicitly affThis only has a minor effect.
-    backend = matching_class()
     noise_model = NoiseModel.from_backend(
         backend,
         gate_error=True,
         readout_error=True,
         temperature=temperature
     )
-    noise_model.name = config["name"]
+    noise_model.name = backend_name
     return noise_model, backend
 
-def _infidelity_to_angle_1q(infidelity):
+def pauli_nm_from_fake_backend(config) -> Tuple[dict, CustomNoiseModelBackend]:
     """
-    Convert infidelity to rotation angle for single-qubit rotation.
-    
-    For U = exp(-i θ/2 σ) where σ is a Pauli:
-    F = (1 + cos(θ/2)²) / 2
-    infidelity = sin²(θ/2)
-    Therefore: θ = 2 * arcsin(sqrt(infidelity))
+        Tuple of (pauli_config, CustomNoiseModelBackend) where pauli_config has structure:
+        [
+            {'1q': {'p_x': float, 'p_y': float, 'p_z': float},
+            }
+            ...
+            with one dictionary for each qubit
+        ]
+            {
+                '1q': {'p_x': float, 'p_y': float, 'p_z': float},
+                '2q': {'p_x': float, 'p_y': float, 'p_z': float},
+                'measurement': {'p_flip': float}
+            }
     """
-    infidelity = np.clip(infidelity, 0, 1)
-    return 2 * np.arcsin(np.sqrt(infidelity))
+    backend, backend_name = _prepare_fake_backend(config)
 
-
-def _infidelity_to_angle_2q(infidelity):
-    """
-    Convert infidelity to rotation angle for two-qubit ZZ rotation.
-    
-    For U = exp(-i θ/2 ZZ) on d=4 dimensional system:
-    infidelity ≈ θ²/15 for small θ
-    Therefore: θ ≈ sqrt(15 * infidelity)
-    """
-    infidelity = np.clip(infidelity, 0, 1)
-    return np.sqrt(15 * infidelity)
-
-
-def _single_qubit_coherent_unitary(theta):
-    """
-    Create single-qubit coherent error unitary.
-    
-    Uses a combined rotation that models both amplitude (X) and phase (Z) errors.
-    Rotation is about an axis tilted 45° between X and Z.
-    """
-    theta_x = theta / np.sqrt(2)
-    theta_z = theta / np.sqrt(2)
-    
-    Rx = RXGate(theta_x).to_matrix()
-    Rz = RZGate(theta_z).to_matrix()
-    
-    return Rz @ Rx
-
-
-def _two_qubit_coherent_unitary(theta, model='zz'):
-    """
-    Create two-qubit coherent error unitary.
-
-    Parameters
-    ----------
-    theta : float
-        Rotation angle
-    model : str
-        Error model to use:
-        - 'zz': ZZ rotation (default, appropriate for CR gates on IBM hardware)
-        - 'zx': ZX rotation (CR drive error)
-        - 'xx': XX rotation (ion trap Mølmer-Sørensen gates)
-
-    Returns
-    -------
-    np.ndarray
-        4x4 unitary matrix
-    """
-    if model == 'zz':
-        return RZZGate(theta).to_matrix()
-    elif model == 'zx':
-        return RZXGate(theta).to_matrix()
-    elif model == 'xx':
-        return RXXGate(theta).to_matrix()
-    else:
-        raise ValueError(f"Unknown two-qubit coherent error model: {model}")
-
-
-class BackendPropertiesAdapter:
-    """
-    Adapter class to provide a unified interface for accessing backend properties
-    from both V1 backends (with .properties()) and V2 backends (with .target).
-    """
-
-    def __init__(self, backend):
-        self.backend = backend
-        self._is_v2 = hasattr(backend, 'target') and backend.target is not None
-
-        if self._is_v2:
-            self._target = backend.target
-            self._props = None
-        else:
-            self._target = None
-            self._props = backend.properties()
-
-    def t1(self, qubit: int) -> float:
-        if self._is_v2:
-            qp = self._target.qubit_properties
-            if qp is None or qp[qubit] is None:
-                raise ValueError(f"No qubit properties for qubit {qubit}")
-            return qp[qubit].t1
-        else:
-            return self._props.t1(qubit)
-
-    def t2(self, qubit: int) -> float:
-        if self._is_v2:
-            qp = self._target.qubit_properties
-            if qp is None or qp[qubit] is None:
-                raise ValueError(f"No qubit properties for qubit {qubit}")
-            return qp[qubit].t2
-        else:
-            return self._props.t2(qubit)
-
-    def gate_length(self, gate: str, qubits) -> float:
-        if self._is_v2:
-            if isinstance(qubits, int):
-                qubits = (qubits,)
-            else:
-                qubits = tuple(qubits)
-
-            if gate not in self._target.operation_names:
-                raise ValueError(f"Gate {gate} not in target")
-
-            inst_props = self._target[gate].get(qubits)
-            if inst_props is None:
-                raise ValueError(f"No properties for {gate} on qubits {qubits}")
-            return inst_props.duration
-        else:
-            return self._props.gate_length(gate, qubits)
-
-    def gate_error(self, gate: str, qubits) -> float:
-        if self._is_v2:
-            if isinstance(qubits, int):
-                qubits = (qubits,)
-            else:
-                qubits = tuple(qubits)
-
-            if gate not in self._target.operation_names:
-                raise ValueError(f"Gate {gate} not in target")
-
-            inst_props = self._target[gate].get(qubits)
-            if inst_props is None:
-                raise ValueError(f"No properties for {gate} on qubits {qubits}")
-            return inst_props.error
-        else:
-            return self._props.gate_error(gate, qubits)
-
-    def readout_error(self, qubit: int) -> float:
-        if self._is_v2:
-            # V2 backends store readout error in the measure instruction
-            if 'measure' in self._target.operation_names:
-                inst_props = self._target['measure'].get((qubit,))
-                if inst_props is not None and inst_props.error is not None:
-                    return inst_props.error
-            raise ValueError(f"No readout error for qubit {qubit}")
-        else:
-            return self._props.readout_error(qubit)
-
+    pauli_config = {
+        '1q': {'p_x': 0.0, 'p_y': 0.0, 'p_z': 0.0},
+        '2q': {'p_x': 0.0, 'p_y': 0.0, 'p_z': 0.0},
+        'measurement': {'p_flip': 0.0}
+    }
+    return pauli_config, CustomNoiseModelBackend(StimBasisGates)
 
 def nm_from_fake_backend_no_twirl(config):
     """
-    Creates a noise model from a fake backend WITHOUT Pauli twirling approximation.
+    Create noise model from fake backend WITHOUT Pauli twirling approximation.
 
-    Instead of using depolarizing errors (which are Pauli channels), this function
-    uses coherent unitary errors to model gate miscalibration. This provides a more
-    physically accurate model for structured circuits where coherent errors can
-    accumulate systematically rather than averaging out.
-
-    The noise model includes:
-    - Thermal relaxation errors (full Kraus operators, not twirled)
-    - Coherent over-rotation errors (unitary, not Pauli)
-    - Readout errors (classical bit-flip)
-
-    Use this when:
-    - Running structured circuits (VQE, QAOA) where coherent errors accumulate
-    - You need more accurate absolute error predictions
-    - Studying error accumulation in variational algorithms
-
-    Use the standard nm_from_fake_backend when:
-    - Running random circuits (Quantum Volume, RB)
-    - You want faster simulation
-    - Relative comparisons are sufficient
+    Uses coherent unitary errors instead of depolarizing errors for more
+    physically accurate modeling of structured circuits.
 
     Config options:
     - "pauli_twirling": false to enable this function
@@ -267,24 +133,12 @@ def nm_from_fake_backend_no_twirl(config):
     - Single error axis per gate type (real errors vary per qubit pair)
     - Does not model leakage or crosstalk
     """
-    # ===========================================
-    # BACKEND SETUP
-    # ===========================================
-    backend_name = config.get("name")
+    backend, backend_name = _prepare_fake_backend(config)
     two_qubit_error_model = config.get("two_qubit_error_model", "zz")
-
-    exists = config_exists(backend_name)
-    fetch_config_files(backend_name, exit_if_unavailable=exists)
-
-    matching_class = get_backend_class(config, backend_name)
-    create_backend_symlinks(config, matching_class)
-    build_backend(config, backend_name)
-    control_parameters = get_control_parameters(config)
 
     logging.info(f"Building noise model without twirling for backend: {backend_name}")
     logging.info(f"Two-qubit coherent error model: {two_qubit_error_model}")
 
-    backend = matching_class()
     props = BackendPropertiesAdapter(backend)
 
     if hasattr(backend, 'num_qubits'):

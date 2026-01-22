@@ -19,7 +19,6 @@ def run_metric(metric_path=DEFAULT_PATH, calculate_consumption=False):
     print(f"Performance value: {performance}")
 
     submitter = submitter_registry.get_submitter("noisy_sim")
-    print(f"submitter: {submitter}")
     if calculate_consumption:
         total_consumption, staggered_consumptions = submitter.get_power_consumption()
 
@@ -55,6 +54,7 @@ if __name__ == "__main__":
 
     # Resolve algorithm name to file path if needed
     metric_path = resolve_metric_path(args.path)
+    print(f"metric_path: {metric_path}")
 
     log_level = getattr(logging, args.log.upper())
     set_up_logger(log_level, args.log_file)
@@ -62,7 +62,7 @@ if __name__ == "__main__":
     if not args.visual:
         matplotlib.use('Agg')  # Use non-interactive backend
 
-    extract_metric_name(metric_name)
+    metric_name = extract_metric_name(metric_path)
 
     num_qubits_list = set_num_qubits_list()
     set_circuit_optimisation()

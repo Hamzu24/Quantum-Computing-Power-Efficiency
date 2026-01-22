@@ -1,9 +1,9 @@
 {
-  "num_qubits": 6,
+  "num_qubits": 100,
   "circuit_optimisation_level": 3,
-  "optimisation_iterations": 10,
+  "optimisation_iterations": 12,
   "max_parallel_circuits": 10,
-  "selected_noise_model": "default",
+  "selected_noise_model": "experiment",
   "device_tracking": {
     "noiseless_sim": 0,
     "noisy_sim": 2
@@ -20,10 +20,10 @@
     }
   },
   "noise_models": {
-    "default": {
+    "experiment": {
       "type": "fake_backend",
-      "name": "sherbrooke",
-      "pauli_twirling": false,
+      "name": "montreal",
+      "pauli_twirling": true,
       "control_parameters": {
         "temperature": [
           [
@@ -31,8 +31,8 @@
             "mK"
           ],
           [
-            15,
-            10,
+            13,
+            5,
             "mK"
           ]
         ]
@@ -41,24 +41,6 @@
         "temperature": [
           13,
           "mK"
-        ]
-      }
-    },
-    "arrhenius": {
-      "type": "arrhenius",
-      "qubit_frequency_hz": 5000000000,
-      "gate_length": 3.5e-08,
-      "control_parameters": {
-        "temperature": [
-          [
-            15,
-            "mK"
-          ],
-          [
-            15,
-            10,
-            "mK"
-          ]
         ]
       }
     }

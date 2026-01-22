@@ -1,0 +1,69 @@
+{
+  "experiment_number": 13,
+  "metric": "vqe",
+  "total_trials": 3,
+  "failed_trials": 2,
+  "combined_plot_path": "experiment_results/experiment_13/Experiment 13: vqe.png",
+  "trials": {
+    "4qb, fake_backend (sherbrooke)": {
+      "trial_number": 0,
+      "params": {
+        "run_type": "optimiser",
+        "metric": "vqe",
+        "num_qubits": 4,
+        "optimisation_iterations": 12,
+        "noise_model_type": "fake_backend",
+        "noise_model_name": "sherbrooke",
+        "noise_model_additional_params": {
+          "pauli_twirling": false
+        },
+        "control_parameters": {
+          "temperature": [
+            [
+              40,
+              "mK"
+            ],
+            [
+              13,
+              5,
+              "mK"
+            ]
+          ]
+        }
+      },
+      "metric": "vqe",
+      "performances": [
+        613.90029680194,
+        607.19543013527,
+        599.065563468607,
+        590.136730135274,
+        580.724630135273,
+        571.012230135273,
+        561.09203013527,
+        550.97519680194,
+        540.3407634686,
+        527.605463468606,
+        507.45739680194,
+        465.727330135274
+      ],
+      "temperatures": [
+        0.013000000000000001,
+        0.018000000000000002,
+        0.023,
+        0.028,
+        0.033,
+        0.038,
+        0.043000000000000003,
+        0.048,
+        0.053,
+        0.058,
+        0.063,
+        0.068
+      ],
+      "plot_path": "experiment_results/experiment_13/trials/trial0_vqe_4qb, fake_backend (sherbrooke).png",
+      "duration_seconds": 314.831573,
+      "timestamp": "2026-01-19T09:04:18.518441"
+    }
+  },
+  "timestamp": "2026-01-19T09:09:36.225144"
+}

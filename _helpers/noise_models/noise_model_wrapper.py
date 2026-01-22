@@ -37,3 +37,14 @@ class NoiseModelWrapper:
         """
         self.factory.validate()
         return self.factory.build()
+
+    def build_pauli(self) -> Tuple[dict, Any]:
+        """
+        Build Pauli noise config for Stim stabilizer simulation.
+
+        Returns:
+            Tuple of (pauli_config, backend_marker) where pauli_config has
+            Pauli channel probabilities for 1q gates, 2q gates, and measurement errors.
+        """
+        self.factory.validate()
+        return self.factory.build_pauli()

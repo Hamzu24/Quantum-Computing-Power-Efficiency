@@ -3,18 +3,15 @@ import os
 import json
 import argparse
 import logging
-import traceback
 from datetime import datetime
 from pathlib import Path
 from copy import deepcopy
-from itertools import product
-from typing import Any
 import matplotlib
 import matplotlib.pyplot as plt
 
 from _helpers.constants import DEFAULT_PATH, resolve_metric_path
 from _helpers.helpers import set_up_logger, set_num_qubits_list, set_circuit_optimisation, read_config, write_config
-from optimiser import optimise, create_performance_plot
+from optimiser import optimise
 from metric_executor import run_metric
 
 # ============================================================================
@@ -26,86 +23,337 @@ EXPERIMENT_PARAMETERS = ["num_qubits", "optimisation_iterations", "noise_model_n
 # Other parameters are run_type, use_nm_base and metric
 
 experiments = [
-    # Quantum Volume on different backends
+    # ============================================================================
+    # QUBIT SCALING EXPERIMENTS (0-8)
+    # ============================================================================
+
+    # Exp 0: QV scaling on Sherbrooke (Modern - Eagle 127q)
     [
-        {
-            "run_type": "optimiser",
-            "metric": "quantum_volume",
-            "num_qubits": 6,
-            "optimisation_iterations": 10,
-            "noise_model_type": "fake_backend",
-            "noise_model_name": "fakeSherbrooke",
-            "noise_model_additional_params": {"pauli_twirling": True},
-            "control_parameters": {"temperature": [[40, "mK"], [15, 5, "mK"]]},
-            "init_control_parameters": {"temperature": [15, "mK"]}
-        },
-        {
-            "run_type": "optimiser",
-            "metric": "quantum_volume",
-            "num_qubits": 6,
-            "optimisation_iterations": 10,
-            "noise_model_type": "fake_backend",
-            "noise_model_name": "fakeTokyo",
-            "noise_model_additional_params": {"pauli_twirling": True},
-            "control_parameters": {"temperature": [[40, "mK"], [15, 5, "mK"]]},
-            "init_control_parameters": {"temperature": [15, "mK"]}
-        }
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 4, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "sherbrooke",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 6, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "sherbrooke",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 8, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "sherbrooke",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 10, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "sherbrooke",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
     ],
-    # Different qubit numbers
+
+    # Exp 1: QV scaling on Montreal (Intermediate - Falcon r4 27q)
     [
-        {
-            "run_type": "optimiser",
-            "metric": "quantum_volume",
-            "num_qubits": 4,
-            "optimisation_iterations": 10,
-            "noise_model_type": "fake_backend",
-            "noise_model_name": "fakeSherbrooke",
-            "control_parameters": {"temperature": [[40, "mK"], [15, 5, "mK"]]},
-            "init_control_parameters": {"temperature": [15, "mK"]}
-        },
-        {
-            "run_type": "optimiser",
-            "metric": "quantum_volume",
-            "num_qubits": 6,
-            "optimisation_iterations": 10,
-            "noise_model_type": "fake_backend",
-            "noise_model_name": "fakeSherbrooke",
-            "control_parameters": {"temperature": [[40, "mK"], [15, 5, "mK"]]},
-            "init_control_parameters": {"temperature": [15, "mK"]}
-        },
-        {
-            "run_type": "optimiser",
-            "metric": "quantum_volume",
-            "num_qubits": 8,
-            "optimisation_iterations": 10,
-            "noise_model_type": "fake_backend",
-            "noise_model_name": "fakeSherbrooke",
-            "control_parameters": {"temperature": [[40, "mK"], [15, 5, "mK"]]},
-            "init_control_parameters": {"temperature": [15, "mK"]}
-        },
-        {
-            "run_type": "optimiser",
-            "metric": "quantum_volume",
-            "num_qubits": 10,
-            "optimisation_iterations": 10,
-            "noise_model_type": "fake_backend",
-            "noise_model_name": "fakeSherbrooke",
-            "control_parameters": {"temperature": [[40, "mK"], [15, 5, "mK"]]},
-            "init_control_parameters": {"temperature": [15, "mK"]}
-        }
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 4, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "montreal",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 6, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "montreal",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 8, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "montreal",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 10, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "montreal",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
     ],
-    # Single run example (no optimization sweep)
+
+    # Exp 2: QV scaling on Tokyo (Legacy - 20q)
     [
-        {
-            "run_type": "single",
-            "metric": "vqe",
-            "num_qubits": 5,
-            "noise_model_type": "fake_backend",
-            "noise_model_name": "fakeSherbrooke",
-            "control_parameters": {"temperature": [[50, "mK"], [15, 5, "mK"]]},
-            "init_control_parameters": {"temperature": [13, "mK"]}
-        }
-    ]
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 4, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "tokyo",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 6, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "tokyo",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 8, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "tokyo",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 10, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "tokyo",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+    ],
+
+    # Exp 3: Grover's scaling on Auckland (Modern - Falcon r5.11 27q)
+    [
+        {"run_type": "optimiser", "metric": "grover", "num_qubits": 3, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "auckland",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "grover", "num_qubits": 4, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "auckland",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "grover", "num_qubits": 5, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "auckland",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "grover", "num_qubits": 6, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "auckland",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+    ],
+
+    # Exp 4: Grover's scaling on Cairo (Intermediate - Falcon r4 27q)
+    [
+        {"run_type": "optimiser", "metric": "grover", "num_qubits": 3, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "cairo",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "grover", "num_qubits": 4, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "cairo",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "grover", "num_qubits": 5, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "cairo",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "grover", "num_qubits": 6, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "cairo",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+    ],
+
+    # Exp 5: Grover's scaling on Rochester (Legacy - 53q)
+    [
+        {"run_type": "optimiser", "metric": "grover", "num_qubits": 3, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "rochester",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "grover", "num_qubits": 4, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "rochester",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "grover", "num_qubits": 5, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "rochester",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "grover", "num_qubits": 6, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "rochester",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+    ],
+
+    # Exp 6: VQE scaling on Geneva (Modern - Falcon r5.11 27q) - NO TWIRLING
+    [
+        {"run_type": "optimiser", "metric": "vqe", "num_qubits": 4, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "geneva",
+         "noise_model_additional_params": {"pauli_twirling": False},
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "vqe", "num_qubits": 5, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "geneva",
+         "noise_model_additional_params": {"pauli_twirling": False},
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "vqe", "num_qubits": 6, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "geneva",
+         "noise_model_additional_params": {"pauli_twirling": False},
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "vqe", "num_qubits": 7, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "geneva",
+         "noise_model_additional_params": {"pauli_twirling": False},
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+    ],
+
+    # Exp 7: VQE scaling on Kolkata (Intermediate - Falcon r4 27q) - NO TWIRLING
+    [
+        {"run_type": "optimiser", "metric": "vqe", "num_qubits": 4, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "kolkata",
+         "noise_model_additional_params": {"pauli_twirling": False},
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "vqe", "num_qubits": 5, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "kolkata",
+         "noise_model_additional_params": {"pauli_twirling": False},
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "vqe", "num_qubits": 6, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "kolkata",
+         "noise_model_additional_params": {"pauli_twirling": False},
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "vqe", "num_qubits": 7, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "kolkata",
+         "noise_model_additional_params": {"pauli_twirling": False},
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+    ],
+
+    # Exp 8: VQE scaling on Almaden (Legacy - 20q) - NO TWIRLING
+    [
+        {"run_type": "optimiser", "metric": "vqe", "num_qubits": 4, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "almaden",
+         "noise_model_additional_params": {"pauli_twirling": False},
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "vqe", "num_qubits": 5, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "almaden",
+         "noise_model_additional_params": {"pauli_twirling": False},
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "vqe", "num_qubits": 6, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "almaden",
+         "noise_model_additional_params": {"pauli_twirling": False},
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "vqe", "num_qubits": 7, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "almaden",
+         "noise_model_additional_params": {"pauli_twirling": False},
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+    ],
+
+    # ============================================================================
+    # BACKEND COMPARISON EXPERIMENTS (9-19)
+    # ============================================================================
+
+    # Exp 9: QV Generational comparison @ 6 qubits (Modern vs Intermediate vs Legacy)
+    [
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 6, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "geneva",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 6, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "montreal",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 6, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "tokyo",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+    ],
+
+    # Exp 10: QV Modern architecture comparison - Eagle vs Falcon r5.11
+    [
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 4, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "sherbrooke",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 4, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "geneva",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 4, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "auckland",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+    ],
+
+    # Exp 11: QV Generational comparison @ 4 qubits
+    [
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 4, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "geneva",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 4, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "montreal",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 4, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "tokyo",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+    ],
+
+    # Exp 12: Grover's on 7-qubit systems - Modern vs Intermediate
+    [
+        {"run_type": "optimiser", "metric": "grover", "num_qubits": 4, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "perth",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "grover", "num_qubits": 4, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "oslo",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "grover", "num_qubits": 4, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "lagos",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "grover", "num_qubits": 4, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "jakarta",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+    ],
+
+    # Exp 13: VQE on all Eagle processors (Modern 127q) - NO TWIRLING
+    [
+        {"run_type": "optimiser", "metric": "vqe", "num_qubits": 4, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "sherbrooke",
+         "noise_model_additional_params": {"pauli_twirling": False},
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "vqe", "num_qubits": 4, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "prague",
+         "noise_model_additional_params": {"pauli_twirling": False},
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "vqe", "num_qubits": 4, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "washington",
+         "noise_model_additional_params": {"pauli_twirling": False},
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+    ],
+
+    # Exp 14: VQE on Intermediate 27q backends - NO TWIRLING
+    [
+        {"run_type": "optimiser", "metric": "vqe", "num_qubits": 4, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "cairo",
+         "noise_model_additional_params": {"pauli_twirling": False},
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "vqe", "num_qubits": 4, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "hanoi",
+         "noise_model_additional_params": {"pauli_twirling": False},
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "vqe", "num_qubits": 4, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "mumbai",
+         "noise_model_additional_params": {"pauli_twirling": False},
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "vqe", "num_qubits": 4, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "kolkata",
+         "noise_model_additional_params": {"pauli_twirling": False},
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+    ],
+
+    # Exp 15: QV on large qubit systems - Hummingbird vs Legacy
+    [
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 4, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "manhattan",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 4, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "brooklyn",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 4, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "rochester",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+    ],
+
+    # Exp 16: Grover's Generational comparison
+    [
+        {"run_type": "optimiser", "metric": "grover", "num_qubits": 4, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "geneva",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "grover", "num_qubits": 4, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "toronto",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "grover", "num_qubits": 4, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "melbourne",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+    ],
+
+    # Exp 17: VQE Generational comparison - NO TWIRLING
+    [
+        {"run_type": "optimiser", "metric": "vqe", "num_qubits": 4, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "auckland",
+         "noise_model_additional_params": {"pauli_twirling": False},
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "vqe", "num_qubits": 4, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "paris",
+         "noise_model_additional_params": {"pauli_twirling": False},
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "vqe", "num_qubits": 4, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "almaden",
+         "noise_model_additional_params": {"pauli_twirling": False},
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+    ],
+
+    # Exp 18: QV scaling on small modern 7q systems (Perth, Oslo)
+    [
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 4, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "perth",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 5, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "perth",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 6, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "perth",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 4, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "oslo",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 5, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "oslo",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 6, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "oslo",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+    ],
+
+    # Exp 19: Grover's on all Eagle processors (Modern 127q)
+    [
+        {"run_type": "optimiser", "metric": "grover", "num_qubits": 4, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "sherbrooke",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "grover", "num_qubits": 4, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "prague",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "grover", "num_qubits": 4, "optimisation_iterations": 12,
+         "noise_model_type": "fake_backend", "noise_model_name": "washington",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+    ],
 ]
 
 DEFAULT_OUTPUT_DIR = "experiment_results"
@@ -389,6 +637,29 @@ class ExperimentRunner:
         with open(self.results_file, 'w') as f:
             json.dump(result_data, f)
 
+def dry_run(runner: ExperimentRunner, experiments: list[list[dict]]) -> bool:
+    """Test that all experiment configs can be built without running metrics."""
+    print("\nDry run: validating configs...")
+    errors = []
+
+    for exp_i, trials in enumerate(experiments):
+        for trial_i, params in enumerate(trials):
+            try:
+                config, run_type, metric = runner._build_full_config(params)
+                resolve_metric_path(metric)
+            except Exception as e:
+                errors.append(f"Experiment {exp_i}, Trial {trial_i}: {e}")
+
+    if errors:
+        print("Dry run FAILED with errors:")
+        for err in errors:
+            print(f"  - {err}")
+        return False
+    else:
+        print("Dry run PASSED: all configs valid")
+        return True
+
+
 def print_experiment_preview(experiments: list[list[dict]]):
     total_trials = sum(len(exp) for exp in experiments)
     print(f"\n{'='*95}")
@@ -454,6 +725,10 @@ def main():
         "--log", type=str, default="WARNING",
         help="Log level (DEBUG, INFO, WARNING, ERROR)"
     )
+    parser.add_argument(
+        "--dry-run", action="store_true",
+        help="Validate configs without running experiments"
+    )
 
     args = parser.parse_args()
 
@@ -463,6 +738,10 @@ def main():
     runner = ExperimentRunner(output_dir=args.output_dir)
 
     print_experiment_preview(experiments)
+
+    if args.dry_run:
+        dry_run(runner, experiments)
+        return
 
     if args.preview:
         print("Preview mode - not running experiments")
