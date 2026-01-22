@@ -149,6 +149,19 @@ class StimStabilizerHelper(AwsBackendHelper):
     Backend helper for Stim stabilizer simulator.
 
     Used for QEC metrics written directly in Stim. Supports Clifford gates only.
+
+    Args:
+        pauli_noise_config: Dict with per-qubit Pauli noise parameters:
+            {
+                'qubits': [
+                    {'p_x': float, 'p_y': float, 'p_z': float},  # qubit 0
+                    {'p_x': float, 'p_y': float, 'p_z': float},  # qubit 1
+                    ...
+                ],
+                'general': {'p_x': float, 'p_y': float, 'p_z': float}  # fallback
+            }
+            Missing keys default to 0. For 2-qubit gates, 1-qubit errors are
+            applied to each qubit independently.
     """
 
     def __init__(self, pauli_noise_config=None) -> None:

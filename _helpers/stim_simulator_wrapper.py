@@ -1,4 +1,3 @@
-
 from typing import Dict, List, Optional
 from collections import Counter
 import numpy as np
@@ -10,6 +9,8 @@ except ImportError:
         "Stim is required for stabilizer simulation. "
         "Install it with: pip install stim"
     )
+
+DEPOL_2q_P = 0.01 # Hardcode for now, build into pauli noise model later!
 
 
 class StimTaskResultWrapper:
@@ -72,18 +73,24 @@ class StimTaskBatchWrapper:
 class StimSimWrapper:
     def __init__(self, pauli_noise_config: Optional[Dict] = None):
         """
-            pauli_noise_config: Optional dict with Pauli noise parameters:
+            pauli_noise_config: Dict with per-qubit Pauli noise parameters:
                 {
-                    '1q': {'p_x': float, 'p_y': float, 'p_z': float},
-                    '2q': {'p_x': float, 'p_y': float, 'p_z': float},
-                    'measurement': {'p_flip': float}
+                    'qubits': [
+                        {'p_x': float, 'p_y': float, 'p_z': float},  # qubit 0
+                        {'p_x': float, 'p_y': float, 'p_z': float},  # qubit 1
+                        ...
+                    ],
+                    'general': {'p_x': float, 'p_y': float, 'p_z': float}  # fallback for qubits not in 'qubits' list
                 }
+
+            Missing keys (p_x, p_y, p_z) default to 0.
+            For 2-qubit gates, 1-qubit Pauli errors are applied to each qubit independently.
         """
         self._pauli_noise_config = pauli_noise_config
 
     def set_pauli_noise_config(self, config: Dict):
         """
-            config: Dict with Pauli noise parameters
+            config: Dict with per-qubit Pauli noise parameters (see __init__ for format)
         """
         self._pauli_noise_config = config
 
@@ -120,24 +127,40 @@ class StimSimWrapper:
 
         return StimTaskBatchWrapper(tasks)
 
+    def _get_qubit_noise_config(self, qubit_index: int) -> Dict:
+        """
+        Get the noise config for a specific qubit.
+
+        Args:
+            qubit_index: Index of the qubit
+
+        Returns:
+            Dict with p_x, p_y, p_z (missing keys default to 0)
+        """
+        config = self._pauli_noise_config
+        qubits_list = config.get('qubits', [])
+        general_config = config.get('general', {})
+
+        if qubit_index < len(qubits_list):
+            qubit_config = qubits_list[qubit_index]
+        else:
+            qubit_config = general_config
+
+        return {
+            'p_x': qubit_config.get('p_x', 0),
+            'p_y': qubit_config.get('p_y', 0),
+            'p_z': qubit_config.get('p_z', 0)
+        }
+
     def _inject_noise(self, circuit: stim.Circuit) -> stim.Circuit:
         """
             circuit: Original stim.Circuit
 
-            returns new stim.Circuit with noise injected
+            returns new stim.Circuit with noise injected after gates.
+            Uses per-qubit Pauli noise from config.
         """
         if self._pauli_noise_config is None:
             return circuit
-
-        config = self._pauli_noise_config
-        p1q = config.get('1q', {})
-        p2q = config.get('2q', {})
-        p_meas = config.get('measurement', {})
-
-        # Calculate total Pauli error probabilities
-        p1_total = p1q.get('p_x', 0) + p1q.get('p_y', 0) + p1q.get('p_z', 0)
-        p2_total = p2q.get('p_x', 0) + p2q.get('p_y', 0) + p2q.get('p_z', 0)
-        p_flip = p_meas.get('p_flip', 0)
 
         # Build new circuit with noise
         noisy_circuit = stim.Circuit()
@@ -151,33 +174,38 @@ class StimSimWrapper:
             targets = instruction.targets_copy()
 
             # Skip noise injection for certain instructions
-            if name in ('TICK', 'DETECTOR', 'OBSERVABLE_INCLUDE', 'QUBIT_COORDS'):
+            if name in ('TICK', 'DETECTOR', 'OBSERVABLE_INCLUDE', 'QUBIT_COORDS',
+                        'M', 'MR', 'MX', 'MY', 'MZ', 'R', 'RX', 'RY', 'RZ'):
                 continue
 
-            # Inject noise after gates
-            if name == 'M' or name == 'MR' or name == 'MX' or name == 'MY' or name == 'MZ':
-                # Measurement error: flip the classical bit
-                if p_flip > 0:
-                    # Use X_ERROR before measurement to simulate bit flip
-                    # Note: For proper measurement error, we'd use DETECTOR error models
-                    # This is a simplified approach
-                    pass  # Measurement errors handled differently in Stim
+            # Get qubit indices from targets
+            qubit_indices = [t.value for t in targets if t.is_qubit_target]
 
-            elif name in ('H', 'S', 'S_DAG', 'X', 'Y', 'Z', 'SQRT_X', 'SQRT_X_DAG',
-                          'SQRT_Y', 'SQRT_Y_DAG', 'I', 'R', 'RX', 'RY'):
-                # Single-qubit gate: add depolarizing noise
-                if p1_total > 0:
-                    qubit_indices = [t.value for t in targets if t.is_qubit_target]
-                    if qubit_indices:
-                        noisy_circuit.append('DEPOLARIZE1', qubit_indices, p1_total)
+            if not qubit_indices:
+                continue
+
+            # Inject per-qubit Pauli noise after gates
+            if name in ('H', 'S', 'S_DAG', 'X', 'Y', 'Z', 'SQRT_X', 'SQRT_X_DAG',
+                        'SQRT_Y', 'SQRT_Y_DAG', 'I'):
+                # Single-qubit gate: add Pauli channel noise per qubit
+                for qubit_idx in qubit_indices:
+                    noise = self._get_qubit_noise_config(qubit_idx)
+                    p_x, p_y, p_z = noise['p_x'], noise['p_y'], noise['p_z']
+                    if p_x > 0 or p_y > 0 or p_z > 0:
+                        noisy_circuit.append('PAULI_CHANNEL_1', [qubit_idx], [p_x, p_y, p_z])
 
             elif name in ('CNOT', 'CX', 'CZ', 'CY', 'SWAP', 'ISWAP', 'ISWAP_DAG',
                           'SQRT_XX', 'SQRT_YY', 'SQRT_ZZ'):
-                # Two-qubit gate: add depolarizing noise
-                if p2_total > 0:
-                    qubit_indices = [t.value for t in targets if t.is_qubit_target]
-                    # DEPOLARIZE2 needs pairs of qubits
-                    if len(qubit_indices) >= 2:
-                        noisy_circuit.append('DEPOLARIZE2', qubit_indices, p2_total)
+                # Two-qubit gate: first apply 1-qubit Pauli error to each qubit independently
+                for qubit_idx in qubit_indices:
+                    noise = self._get_qubit_noise_config(qubit_idx)
+                    p_x, p_y, p_z = noise['p_x'], noise['p_y'], noise['p_z']
+                    if p_x > 0 or p_y > 0 or p_z > 0:
+                        noisy_circuit.append('PAULI_CHANNEL_1', [qubit_idx], [p_x, p_y, p_z])
+                # Then apply depolarising channel to each two qubit pair
+                for i in range(0, len(qubit_indices), 2):
+                    qubit_a = qubit_indices[i]
+                    qubit_b = qubit_indices[i+1]
+                    noisy_circuit.append(f'DEPOLARIZE2({DEPOL_2q_P}) {qubit_a} {qubit_b}')
 
         return noisy_circuit
