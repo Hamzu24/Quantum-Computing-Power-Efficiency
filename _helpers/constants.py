@@ -3,6 +3,8 @@ from qiskit_ibm_runtime.fake_provider import (
     FakeAlmadenV2, FakeArmonkV2, FakeAthensV2, FakeAuckland, FakeBelemV2, FakeBoeblingenV2, FakeBogotaV2, FakeBrooklynV2, FakeBurlingtonV2, FakeCairoV2, FakeCambridgeV2, FakeCasablancaV2, FakeEssexV2, FakeGeneva, FakeGuadalupeV2, FakeHanoiV2, FakeJakartaV2, FakeJohannesburgV2, FakeKolkataV2, FakeLagosV2, FakeLimaV2, FakeLondonV2, FakeManhattanV2, FakeManilaV2, FakeMelbourneV2, FakeMontrealV2, FakeMumbaiV2, FakeNairobiV2, FakeOslo, FakeOurenseV2, FakeParisV2, FakePerth, FakePoughkeepsieV2, FakePrague, FakeQuitoV2, FakeRochesterV2, FakeRomeV2, FakeRueschlikon, FakeSantiagoV2, FakeSherbrooke, FakeSingaporeV2, FakeSydneyV2, FakeTenerife, FakeTokyo, FakeTorontoV2, FakeValenciaV2, FakeVigoV2, FakeWashingtonV2, FakeYorktownV2,
 )
 
+Pauli_nm_FD = 1 # Frequency dependence of the pauli nm
+
 DEFAULT_PATH = "tutorials/circuit_execution_quality_metrics/quantum_volume/quantum_volume.py"
 
 # Algorithm name to file path mapping

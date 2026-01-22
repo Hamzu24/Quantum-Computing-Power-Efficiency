@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import inspect
 import copy
+from math import exp, sqrt
 from typing import Any
 from qiskit.circuit.library import RZXGate, RZGate, RXGate, RZZGate, RXXGate
 from qiskit.quantum_info import Operator, average_gate_fidelity
@@ -28,7 +29,7 @@ from _helpers.constants import (
     EXISTING_MODELS, DEFAULT_INSTRUCTION_TIMES,
     DefaultBasisGatesNoiseless, DefaultBasisGates1qb, DefaultBasisGates2qb,
     NOISELESS_GATES, SINGLE_QUBIT_GATES, TWO_QUBIT_GATES,
-    StimBasisGates
+    StimBasisGates, Pauli_nm_FD
 )
 from _helpers.noise_models.base import CustomNoiseModelBackend
 from _helpers.noise_models import noise_model_registry, NoiseModelWrapper
@@ -93,28 +94,112 @@ def nm_from_fake_backend(config):
     return noise_model, backend
 
 def pauli_nm_from_fake_backend(config) -> Tuple[dict, CustomNoiseModelBackend]:
-    """
-        Tuple of (pauli_config, CustomNoiseModelBackend) where pauli_config has structure:
-        [
-            {'1q': {'p_x': float, 'p_y': float, 'p_z': float},
-            }
-            ...
-            with one dictionary for each qubit
-        ]
-            {
-                '1q': {'p_x': float, 'p_y': float, 'p_z': float},
-                '2q': {'p_x': float, 'p_y': float, 'p_z': float},
-                'measurement': {'p_flip': float}
-            }
-    """
     backend, backend_name = _prepare_fake_backend(config)
 
-    pauli_config = {
-        '1q': {'p_x': 0.0, 'p_y': 0.0, 'p_z': 0.0},
-        '2q': {'p_x': 0.0, 'p_y': 0.0, 'p_z': 0.0},
-        'measurement': {'p_flip': 0.0}
-    }
-    return pauli_config, CustomNoiseModelBackend(StimBasisGates)
+    qubit_properties = get_qubit_properties(backend_name)
+    noise_model = build_pauli_noise_model(qubit_properties)
+
+    return noise_model, CustomNoiseModelBackend(StimBasisGates)
+
+
+def get_qubit_properties(backend_name: str) -> dict:
+    """
+    Get all gate lengths and qubit properties organized by qubit.
+
+    Args:
+        backend_name: Name of the backend (e.g., "tokyo")
+
+    Returns:
+        Dictionary with structure:
+        {
+            qubit_index: {
+                "gates": {gate_name: gate_time_in_seconds, ...},
+                "properties": {"T1": t1_in_seconds, "T2": t2_in_seconds, "T_psi": t_psi_in_seconds}
+            },
+            ...
+        }
+    """
+    props_path = os.path.join(
+        os.environ.get("BACKEND_CONFIGS_FOLDER"),
+        backend_name,
+        f"props_{backend_name}.json"
+    )
+
+    jm = JsonManager(props_path)
+    gates = jm.resolve("gates.")
+    qubits = jm.resolve("qubits.")
+
+    result = {}
+
+    for i, qubit_props in enumerate(qubits):
+        qb_path = f"qubits.[{i}]."
+        T1 = jm.find_value_with_units("T1", qb_path)
+        T2 = jm.find_value_with_units("T2", qb_path)
+        T_psi = 1/((1/T2) - (1/(2*T1)))
+        result[i] = {
+            "gates": {},
+            "properties": {"T1": T1, "T2": T2, "T_psi": T_psi}
+        }
+
+    for i, gate in enumerate(gates):
+        gate_name = gate.get("gate")
+        gate_qubits = gate.get("qubits", [])
+
+        if not gate_name or not gate_qubits:
+            continue
+
+        gate_path = f"gates.[{i}].parameters."
+        gate_length = jm.find_value_with_units("gate_length", gate_path)
+
+        if gate_length is None:
+            continue
+
+        for qubit in gate_qubits:
+            if qubit not in result:
+                result[qubit] = {"gates": {}, "properties": {"T1": None, "T2": None, "T_psi": None}}
+
+            result[qubit]["gates"][gate_name] = gate_length
+
+    return result
+
+
+def build_pauli_noise_model(qubit_properties: dict) -> dict:
+    """
+    Build a Pauli noise model from qubit properties.
+
+    Args:
+        qubit_properties: Dictionary from get_qubit_properties()
+
+    Returns:
+        Dictionary with structure:
+        {
+            qubit_index: {
+                gate_name: {'p_x': float, 'p_y': float, 'p_z': float},
+                ...
+            },
+            ...
+        }
+    """
+    noise_model = {}
+
+    for i, qb_result in qubit_properties.items():
+        props = qb_result["properties"]
+        qubit_nm = {}
+        for gate, length in qb_result["gates"].items():
+            survival_p = exp(-length/props["T1"])
+            relaxation_p = 1 - survival_p
+            dephasing = survival_p*(1 - exp((-2*(length/props["T_psi"]))**(1+Pauli_nm_FD)))
+
+            p_x = relaxation_p/4
+            p_y = p_x
+            p_z = 0.5 - p_x - sqrt(1 - relaxation_p - dephasing)/2
+
+            qubit_nm[gate] = {'p_x': p_x, 'p_y': p_y, 'p_z': p_z}
+
+        noise_model[i] = qubit_nm
+
+    return noise_model
+
 
 def nm_from_fake_backend_no_twirl(config):
     """
