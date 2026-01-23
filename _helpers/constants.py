@@ -16,7 +16,8 @@ ALGORITHM_PATHS = {
     "grovers_search": "tutorials/circuit_execution_quality_metrics/grovers_search/grovers_search.py",
     "grover": "tutorials/circuit_execution_quality_metrics/grovers_search/grovers_search.py",
     "vqe": "tutorials/well_studied_task_execution_quality_metrics/vqe/vqe.py",
-    "stim_test": "tutorials/qec_metrics/simple_stim_test/simple_stim_test.py"
+    "stim_test": "tutorials/qec_metrics/simple_stim_test/simple_stim_test.py",
+    "clifford_qv": "tutorials/qec_metrics/clifford_quantum_volume/clifford_quantum_volume.py"
 }
 
 
@@ -180,10 +181,59 @@ TWO_QUBIT_GATES = {
 # QEC metrics are written directly in Stim and use StimCircuitSubmitter.
 # Add metric names here as QEC metrics are created.
 CLIFFORD_METRICS = [
-    "stim_test"
+    "simple_stim_test",
+    "clifford_quantum_volume"
 ]
 
 # Basis gates for Stim stabilizer simulation, matching superconducting hardware.
 # Uses the same native gate set as real IBM devices (sx, x, rz, cx).
 # All Clifford gates decompose into these (e.g., H = RZ·SX·RZ, S = RZ(π/2)).
-StimBasisGates = DefaultBasisGates1qb + DefaultBasisGates2qb + DefaultBasisGatesNoiseless
+STIM_TO_BASIC = {
+    # Single-qubit gates
+    'H': 'h',
+    'S': 's',
+    'S_DAG': 'sdg',
+    'X': 'x',
+    'Y': 'y',
+    'Z': 'z',
+    'SQRT_X': 'sx',
+    'SQRT_X_DAG': 'sxdg',
+    'SQRT_Y': 'sy',
+    'SQRT_Y_DAG': 'sydg',
+    'SQRT_Z': 's',
+    'SQRT_Z_DAG': 'sdg',
+    'I': 'id',
+    'H_XY': 'h_xy',
+    'H_XZ': 'h',
+    'H_YZ': 'h_yz',
+    'C_XYZ': 'c_xyz',
+    'C_ZYX': 'c_zyx',
+    
+    # Two-qubit gates
+    'CNOT': 'cx',
+    'CX': 'cx',
+    'CZ': 'cz',
+    'CY': 'cy',
+    'SWAP': 'swap',
+    'ISWAP': 'iswap',
+    'ISWAP_DAG': 'iswap_dag',
+    'SQRT_XX': 'rxx',
+    'SQRT_YY': 'ryy',
+    'SQRT_ZZ': 'rzz',
+    'SQRT_XX_DAG': 'rxx_dag',
+    'SQRT_YY_DAG': 'ryy_dag',
+    'SQRT_ZZ_DAG': 'rzz_dag',
+    'XCX': 'xcx',
+    'XCY': 'xcy',
+    'XCZ': 'xcz',
+    'YCX': 'ycx',
+    'YCY': 'ycy',
+    'YCZ': 'ycz',
+    'CXSWAP': 'cxswap',
+    'SWAPCX': 'swapcx',
+    'CZSWAP': 'czswap',
+}
+
+RequiredStimGates = ['h', 's', 'sdg', 'x', 'y', 'z', 'sx', 'sxdg', 'cx', 'cz']
+
+StimBasisGates = ['H', 'S', 'S_DAG', 'X', 'Y', 'Z', 'SQRT_X', 'SQRT_X_DAG', 'CX', 'CZ']

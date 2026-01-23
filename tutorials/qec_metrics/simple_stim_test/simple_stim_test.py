@@ -85,7 +85,7 @@ def calculate_ghz_fidelity(counts: dict, n_qubits: int) -> float:
 
 
 def run_ghz_fidelity_test(
-    submitter: StimCircuitSubmitter,
+    submitter: CircuitSubmitter,
     n_qubits: int,
     num_trials: int = 100,
     shots_per_trial: int = 1000
@@ -97,7 +97,7 @@ def run_ghz_fidelity_test(
 
     for _ in range(num_trials):
         circuit = create_ghz_circuit(n_qubits)
-        result = submitter.submit_circuits(shots_per_trial, [circuit], print_summary=False)
+        result = submitter.submit_circuits(shots_per_trial, stim_circuits=[circuit], print_summary=False)
         counts = result.tasks[0].result().measurement_counts
         fidelity = calculate_ghz_fidelity(counts, n_qubits)
         fidelities.append(fidelity)
@@ -124,7 +124,7 @@ if __name__ == "__main__":
     num_trials = 100
     shots = 250
 
-    device_name="noisy_sim"
+    device_name="stim_sim"
     # Create submitter
     submitter = CircuitSubmitter(
         "simple_stim_test",
@@ -132,31 +132,27 @@ if __name__ == "__main__":
     )
     filepath = submitter.benchmark_path
 
-    # Run tests at each qubit count
-    results = {}
-    for n in qubit_counts:
-        print(f"\n[Testing {n} qubits]")
-        print(f"  Trials: {num_trials}, Shots per trial: {shots}")
+    # Run test for the configured qubit count
+    print(f"\n[Testing {n_qubits} qubits]")
+    print(f"  Trials: {num_trials}, Shots per trial: {shots}")
 
-        import time
-        start = time.time()
-        result = run_ghz_fidelity_test(
-            submitter,
-            n_qubits=n,
-            num_trials=num_trials,
-            shots_per_trial=shots
-        )
-        elapsed = time.time() - start
+    import time
+    start = time.time()
+    result = run_ghz_fidelity_test(
+        submitter,
+        n_qubits=n_qubits,
+        num_trials=num_trials,
+        shots_per_trial=shots
+    )
+    elapsed = time.time() - start
 
-        results[n] = result
-        results[n]['elapsed_seconds'] = elapsed
+    result['elapsed_seconds'] = elapsed
 
-        print(f"  Mean GHZ Fidelity: {result['mean_fidelity']:.4f} ± {result['std_fidelity']:.4f}")
-        print(f"  Time: {elapsed:.2f}s")
+    print(f"  Mean GHZ Fidelity: {result['mean_fidelity']:.4f} ± {result['std_fidelity']:.4f}")
+    print(f"  Time: {elapsed:.2f}s")
 
-    # Use the primary qubit count result for PERF_VALUE
-    primary_result = results[qubit_counts[0]]
-    perf_value = primary_result['mean_fidelity']
+    # Set PERF_VALUE
+    perf_value = result['mean_fidelity']
     os.environ["PERF_VALUE"] = str(perf_value)
 
     # Power consumption summary
@@ -166,12 +162,12 @@ if __name__ == "__main__":
 
     # Summary
     print("\n" + "=" * 70)
-    print(f"PERF_VALUE (GHZ Fidelity at {qubit_counts[0]} qubits): {perf_value:.4f}")
+    print(f"PERF_VALUE (GHZ Fidelity at {n_qubits} qubits): {perf_value:.4f}")
     print("=" * 70)
 
     # Save results
     import json
     results_path = f"{filepath}/results.json"
     with open(results_path, 'w') as f:
-        json.dump({str(k): v for k, v in results.items()}, f, indent=2)
+        json.dump(result, f, indent=2)
     print(f"\nResults saved to: {results_path}")

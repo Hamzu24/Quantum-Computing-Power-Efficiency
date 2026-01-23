@@ -164,13 +164,14 @@ class StimStabilizerHelper(AwsBackendHelper):
             applied to each qubit independently.
     """
 
-    def __init__(self, pauli_noise_config=None) -> None:
+    def __init__(self, pauli_noise_config=None, basis_gates=None) -> None:
         super().__init__()
         from _helpers.stim_simulator_wrapper import StimSimWrapper
 
         self.device = StimSimWrapper(pauli_noise_config=pauli_noise_config)
         self.name = "stim_sim"
         self._pauli_noise_config = pauli_noise_config
+        self._basis_gates = basis_gates
 
     def get_device_calibration(self):
         return "Stim stabilizer simulator (Clifford/QEC circuits only)"
@@ -183,9 +184,7 @@ class StimStabilizerHelper(AwsBackendHelper):
         )
 
     def get_basis_gates(self):
-        # Stim supports all Clifford gates natively
-        # Return None since Stim handles gate validation internally
-        return None
+        return self._basis_gates
 
     def get_costs(self) -> Tuple[float]:
         return 0, 0
@@ -194,6 +193,10 @@ class StimStabilizerHelper(AwsBackendHelper):
         """Set Pauli noise configuration for the simulator."""
         self._pauli_noise_config = config
         self.device.set_pauli_noise_config(config)
+
+    def set_basis_gates(self, basis_gates):
+        """Set the basis gates for transpilation."""
+        self._basis_gates = basis_gates
 
 
 class OQCLucyHelper(AwsBackendHelper):

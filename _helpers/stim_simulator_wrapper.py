@@ -1,5 +1,6 @@
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 from collections import Counter
+from _helpers.constants import STIM_TO_BASIC
 import numpy as np
 
 try:
@@ -11,6 +12,106 @@ except ImportError:
     )
 
 DEPOL_2q_P = 0.01 # Hardcode for now, build into pauli noise model later!
+
+# Gate decompositions for transpiling to basis gates
+# Maps stim gate names to sequences of basis gates
+# Format: {gate_name: [(basis_gate, qubits_selector), ...]}
+# qubits_selector: 'all' applies to all qubits, 'pairs' for 2-qubit gates
+STIM_GATE_DECOMPOSITIONS = {
+    # H = S · SQRT_X · S (up to global phase)
+    'H': [('S', 'all'), ('SQRT_X', 'all'), ('S', 'all')],
+    # Y = S · S · X = Z · X (up to global phase)
+    'Y': [('S', 'all'), ('S', 'all'), ('X', 'all')],
+    # Z = S · S
+    'Z': [('S', 'all'), ('S', 'all')],
+    # SQRT_Y = S · SQRT_X · S_DAG (up to global phase)
+    'SQRT_Y': [('S', 'all'), ('SQRT_X', 'all'), ('S_DAG', 'all')],
+    # SQRT_Y_DAG = S_DAG · SQRT_X · S (up to global phase)
+    'SQRT_Y_DAG': [('S_DAG', 'all'), ('SQRT_X', 'all'), ('S', 'all')],
+}
+
+# Qiskit gate names to stim gate names mapping
+QISKIT_TO_STIM = {
+    'sx': 'SQRT_X',
+    'sxdg': 'SQRT_X_DAG',
+    'x': 'X',
+    'y': 'Y',
+    'z': 'Z',
+    'h': 'H',
+    's': 'S',
+    'sdg': 'S_DAG',
+    't': 'T',
+    'tdg': 'T_DAG',
+    'cx': 'CX',
+    'cz': 'CZ',
+    'cy': 'CY',
+    'swap': 'SWAP',
+    'iswap': 'ISWAP',
+    'id': 'I',
+    'rz': 'RZ',
+}
+
+
+def transpile_stim_circuit(circuit: stim.Circuit, basis_gates: List[str]) -> stim.Circuit:
+    """
+    Transpile a stim circuit to use only the specified basis gates.
+
+    Args:
+        circuit: The stim circuit to transpile
+        basis_gates: List of allowed gate names (Qiskit-style, e.g., ['sx', 'x', 's', 'cx'])
+
+    Returns:
+        A new stim circuit using only the basis gates
+    """
+    if basis_gates is None:
+        return circuit
+
+    # Convert qiskit gate names to stim gate names
+    stim_basis_gates: Set[str] = set()
+    for gate in basis_gates:
+        gate_lower = gate.lower()
+        if gate_lower in QISKIT_TO_STIM:
+            stim_basis_gates.add(QISKIT_TO_STIM[gate_lower])
+        else:
+            # Try uppercase directly (might already be stim format)
+            stim_basis_gates.add(gate.upper())
+
+    # Always allow measurement and reset operations
+    stim_basis_gates.update({'M', 'MR', 'MX', 'MY', 'MZ', 'R', 'RX', 'RY', 'RZ',
+                            'TICK', 'DETECTOR', 'OBSERVABLE_INCLUDE', 'QUBIT_COORDS',
+                            'PAULI_CHANNEL_1', 'PAULI_CHANNEL_2', 'DEPOLARIZE1', 'DEPOLARIZE2'})
+
+    transpiled = stim.Circuit()
+
+    for instruction in circuit:
+        name = instruction.name
+        targets = instruction.targets_copy()
+        args = instruction.gate_args_copy()
+
+        # Check if gate is already in basis set
+        if name in stim_basis_gates:
+            transpiled.append(instruction)
+            continue
+
+        # Check if we have a decomposition
+        if name in STIM_GATE_DECOMPOSITIONS:
+            qubit_indices = [t.value for t in targets if t.is_qubit_target]
+            decomposition = STIM_GATE_DECOMPOSITIONS[name]
+
+            for basis_gate, selector in decomposition:
+                if selector == 'all':
+                    for q in qubit_indices:
+                        transpiled.append(basis_gate, [q])
+                elif selector == 'pairs':
+                    # For 2-qubit gates, apply to pairs
+                    for i in range(0, len(qubit_indices), 2):
+                        transpiled.append(basis_gate, [qubit_indices[i], qubit_indices[i+1]])
+        else:
+            # No decomposition available, keep original gate
+            # (will work if stim supports it natively)
+            transpiled.append(instruction)
+
+    return transpiled
 
 
 class StimTaskResultWrapper:
@@ -127,12 +228,13 @@ class StimSimWrapper:
 
         return StimTaskBatchWrapper(tasks)
 
-    def _get_qubit_noise_config(self, qubit_index: int) -> Dict:
+    def _get_qubit_noise_config(self, qubit_index: int, basic_name: str) -> Dict:
         """
         Get the noise config for a specific qubit.
 
         Args:
             qubit_index: Index of the qubit
+            basic_name: The name of the instruction being run
 
         Returns:
             Dict with p_x, p_y, p_z (missing keys default to 0)
@@ -142,15 +244,15 @@ class StimSimWrapper:
         general_config = config.get('general', {})
 
         if qubit_index < len(qubits_list):
-            qubit_config = qubits_list[qubit_index]
+            qubit_settings = qubits_list[qubit_index]
         else:
-            qubit_config = general_config
+            qubit_settings = general_config
 
-        return {
-            'p_x': qubit_config.get('p_x', 0),
-            'p_y': qubit_config.get('p_y', 0),
-            'p_z': qubit_config.get('p_z', 0)
-        }
+        noise_settings = qubit_settings.get(basic_name)
+        if noise_settings is None:
+            noise_settings = general_config.get('default')
+
+        return noise_settings
 
     def _inject_noise(self, circuit: stim.Circuit) -> stim.Circuit:
         """
@@ -162,35 +264,37 @@ class StimSimWrapper:
         if self._pauli_noise_config is None:
             return circuit
 
-        # Build new circuit with noise
         noisy_circuit = stim.Circuit()
 
         for instruction in circuit:
-            # Add the original instruction
             noisy_circuit.append(instruction)
 
-            # Get instruction name and targets
             name = instruction.name
             targets = instruction.targets_copy()
 
-            # Skip noise injection for certain instructions
+            # IN THE FUTURE:
+            #  Potentially add noise to M, MR, MX, MY and MZ, the measure operations
+            #  Also potentially add noise to R, RX, RY and RZ, the reset operations
             if name in ('TICK', 'DETECTOR', 'OBSERVABLE_INCLUDE', 'QUBIT_COORDS',
                         'M', 'MR', 'MX', 'MY', 'MZ', 'R', 'RX', 'RY', 'RZ'):
                 continue
 
-            # Get qubit indices from targets
             qubit_indices = [t.value for t in targets if t.is_qubit_target]
 
             if not qubit_indices:
                 continue
 
-            # Inject per-qubit Pauli noise after gates
+            basic_name = STIM_TO_BASIC.get(name)
+
             if name in ('H', 'S', 'S_DAG', 'X', 'Y', 'Z', 'SQRT_X', 'SQRT_X_DAG',
                         'SQRT_Y', 'SQRT_Y_DAG', 'I'):
                 # Single-qubit gate: add Pauli channel noise per qubit
                 for qubit_idx in qubit_indices:
-                    noise = self._get_qubit_noise_config(qubit_idx)
-                    p_x, p_y, p_z = noise['p_x'], noise['p_y'], noise['p_z']
+                    noise = self._get_qubit_noise_config(qubit_idx, basic_name)
+                    if noise is None:
+                        # No noise config for this gate, skip noise injection
+                        continue
+                    p_x, p_y, p_z = noise.get('p_x', 0), noise.get('p_y', 0), noise.get('p_z', 0)
                     if p_x > 0 or p_y > 0 or p_z > 0:
                         noisy_circuit.append('PAULI_CHANNEL_1', [qubit_idx], [p_x, p_y, p_z])
 
@@ -198,14 +302,16 @@ class StimSimWrapper:
                           'SQRT_XX', 'SQRT_YY', 'SQRT_ZZ'):
                 # Two-qubit gate: first apply 1-qubit Pauli error to each qubit independently
                 for qubit_idx in qubit_indices:
-                    noise = self._get_qubit_noise_config(qubit_idx)
-                    p_x, p_y, p_z = noise['p_x'], noise['p_y'], noise['p_z']
+                    noise = self._get_qubit_noise_config(qubit_idx, basic_name)
+                    if noise is None:
+                        continue
+                    p_x, p_y, p_z = noise.get('p_x', 0), noise.get('p_y', 0), noise.get('p_z', 0)
                     if p_x > 0 or p_y > 0 or p_z > 0:
                         noisy_circuit.append('PAULI_CHANNEL_1', [qubit_idx], [p_x, p_y, p_z])
                 # Then apply depolarising channel to each two qubit pair
                 for i in range(0, len(qubit_indices), 2):
                     qubit_a = qubit_indices[i]
                     qubit_b = qubit_indices[i+1]
-                    noisy_circuit.append(f'DEPOLARIZE2({DEPOL_2q_P}) {qubit_a} {qubit_b}')
+                    noisy_circuit.append('DEPOLARIZE2', [qubit_a, qubit_b], [DEPOL_2q_P])
 
         return noisy_circuit

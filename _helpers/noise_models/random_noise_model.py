@@ -8,8 +8,7 @@ from _helpers.noise_models.base import (
     noise_model_registry, CustomNoiseModelBackend
 )
 from _helpers.constants import (
-    DefaultBasisGatesNoiseless, DefaultBasisGates1qb, DefaultBasisGates2qb,
-    StimBasisGates
+    DefaultBasisGatesNoiseless, DefaultBasisGates1qb, DefaultBasisGates2qb
 )
 
 

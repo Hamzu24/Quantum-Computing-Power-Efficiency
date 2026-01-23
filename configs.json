@@ -1,5 +1,5 @@
 {
-  "num_qubits": 100,
+  "num_qubits": 5,
   "circuit_optimisation_level": 3,
   "optimisation_iterations": 12,
   "max_parallel_circuits": 10,
@@ -22,12 +22,11 @@
   "noise_models": {
     "experiment": {
       "type": "fake_backend",
-      "name": "montreal",
-      "pauli_twirling": true,
+      "name": "sherbrooke",
       "control_parameters": {
         "temperature": [
           [
-            40,
+            13,
             "mK"
           ],
           [

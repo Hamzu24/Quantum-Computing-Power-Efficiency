@@ -3,8 +3,9 @@ import _helpers.circuit_submitter
 from collections import Counter
 from pathlib import Path
 import json
-from typing import Iterable, Union, Tuple, override
-from _helpers.stim_simulator_wrapper import StimTaskBatchWrapper
+from typing import Iterable, Union, Tuple
+from typing_extensions import override
+from _helpers.stim_simulator_wrapper import StimTaskBatchWrapper, transpile_stim_circuit
 from braket.tasks.local_quantum_task import LocalQuantumTask
 from qiskit.providers.aer import AerJob
 from qiskit.circuit.quantumcircuit import QuantumCircuit
@@ -51,7 +52,7 @@ class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
             if configs.get(key) is None:
                 raise ValueError("Invalid config file! Must include power_configs, noise_models and device_tracking config options!")
 
-    def _setup_power_config(self, configs, device_name):
+    def _setup_power_config(self, configs):
         power_configs = configs.get("power_configs")
         if power_configs.get(self.device_name) is not None:
             self.power_config = power_configs.get(self.device_name)
@@ -59,7 +60,7 @@ class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
             self.power_config = power_configs.get("default_power_config")
 
     def _apply_noise_model(self, noise_model_instance):
-        if not pauli_mode:
+        if not self.pauli_mode:
             self.backend.noise_model = noise_model_instance
             self.backend.device.noise_model = noise_model_instance
             self.backend.device.sim = self.backend.device.backend(
@@ -67,13 +68,16 @@ class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
             )
         else:
             self.backend.set_noise_config(noise_model_instance)
+            if self.device_name == "stim_sim" and self.nm_backend is not None:
+                basis_gates = get_basis_gates_from_backend(self.nm_backend)
+                self.backend.set_basis_gates(basis_gates)
 
     def _setup_noise_model(self, configs):
         self.nm_backend = None
 
         selected_noise_model = configs.get("selected_noise_model")
         noise_models = configs.get("noise_models")
-        noisy_devices = ["noisy_sim", "noisy_sim_with_shots"]
+        noisy_devices = ["noisy_sim", "noisy_sim_with_shots", "stim_sim"]
         if self.device_name not in noisy_devices:
             logging.debug(f"You are not using a noisy device simulator. The backend being used is {self.backend}")
             return
@@ -85,7 +89,7 @@ class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
         print(f"\n\nnoise model specs: {noise_model_specs}")
 
         if noise_model_specs:
-            noise_model_instance, nm_backend = craft_noise_model(noise_model_specs)
+            noise_model_instance, nm_backend = craft_noise_model(noise_model_specs, self.pauli_mode)
             self.nm_backend = nm_backend
             self._apply_noise_model(noise_model_instance)
             return
@@ -126,13 +130,20 @@ class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
         return False
     
     def submit_stim_circuits(self, shots, stim_circuits, print_summary):
+        # Transpile circuits to basis gates if available
+        basis_gates = self.backend.get_basis_gates()
+        if basis_gates is not None:
+            stim_circuits = [transpile_stim_circuit(c, basis_gates) for c in stim_circuits]
+            if print_summary:
+                print(f"Transpiled circuits to basis gates: {basis_gates}")
+
         if print_summary:
-            print(f"Running {len(circuits)} Stim circuits with {shots} shots each")
+            print(f"Running {len(stim_circuits)} Stim circuits with {shots} shots each")
 
-        for circuit in circuits:
-            self._count_gates(circuit)
+        #for circuit in stim_circuits:
+        #    self._count_gates(circuit)
 
-        result = self.backend.device.run_batch(circuits, shots)
+        result = self.backend.device.run_batch(stim_circuits, shots)
 
         self.gate_history.append(Counter(self.total_gates))
 
@@ -142,10 +153,9 @@ class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
         return result
 
     @override
-    def submit_circuits(self, shots: int, verbatim: bool = True, skip_asking: bool = False, skip_transpilation: bool = False, print_summary: bool = True, braket_circuits: list = None, qasm_strs: list[str] = None, qasm_paths: list[str] = None, inputs: dict[str, float] = None, stim_circuits: List[stim.Circuit]) -> Union[list[AwsQuantumTask], list[LocalQuantumTask]]:
+    def submit_circuits(self, shots: int, verbatim: bool = True, skip_asking: bool = False, skip_transpilation: bool = False, print_summary: bool = True, braket_circuits: list = None, qasm_strs: list[str] = None, qasm_paths: list[str] = None, inputs: dict[str, float] = None, stim_circuits: list[stim.Circuit] = None) -> Union[list[AwsQuantumTask], list[LocalQuantumTask]]:
         if self.pauli_mode:
-            self.submit_stim_circuits(self, shots, stim_circuits, print_summary)
-            return
+            return self.submit_stim_circuits(shots, stim_circuits, print_summary)
 
         tasks = super().submit_circuits(shots, verbatim, skip_asking, skip_transpilation, print_summary, braket_circuits, qasm_strs, qasm_paths, inputs)
 
@@ -175,7 +185,7 @@ class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
         # return tasks
 
     @override
-    def retrieve_counts(self, circuit_ids: list[str] = None, wait: bool = True, print_timestamp_when_done=True, result: StimTaskBatchWrapper):
+    def retrieve_counts(self, circuit_ids: list[str] = None, wait: bool = True, print_timestamp_when_done=True, result: StimTaskBatchWrapper = None):
         if self.pauli_mode:
             return [task.result().measurement_counts for task in result.tasks]
 

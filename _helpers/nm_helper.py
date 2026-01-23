@@ -22,19 +22,19 @@ from qiskit_aer.noise import (
 from qiskit.providers.models import (
     BackendProperties,
 )
-from _helpers.builders.builder_wrapper import BuilderWrapper
 import logging
 from _helpers.helpers import get_basis_gates_from_backend, get_control_parameters, extract_from_json, get_config_value, _infidelity_to_angle_1q, _infidelity_to_angle_2q, _single_qubit_coherent_unitary, _two_qubit_coherent_unitary, BackendPropertiesAdapter
 from _helpers.constants import (
     EXISTING_MODELS, DEFAULT_INSTRUCTION_TIMES,
     DefaultBasisGatesNoiseless, DefaultBasisGates1qb, DefaultBasisGates2qb,
     NOISELESS_GATES, SINGLE_QUBIT_GATES, TWO_QUBIT_GATES,
-    StimBasisGates, Pauli_nm_FD
+    Pauli_nm_FD, RequiredStimGates
 )
 from _helpers.noise_models.base import CustomNoiseModelBackend
 from _helpers.noise_models import noise_model_registry, NoiseModelWrapper
+from _helpers.json_manager import JsonManager
+from _helpers.builders.builder_wrapper import BuilderWrapper
 from typing import Type, Tuple
-from json_manager import JsonManager
 
 # Main function
 def craft_noise_model(config: dict, pauli_mode: bool = False):
@@ -99,8 +99,32 @@ def pauli_nm_from_fake_backend(config) -> Tuple[dict, CustomNoiseModelBackend]:
     qubit_properties = get_qubit_properties(backend_name)
     noise_model = build_pauli_noise_model(qubit_properties)
 
-    return noise_model, CustomNoiseModelBackend(StimBasisGates)
+    return noise_model, backend
 
+def get_gate_duration(gate: str, durations: dict[str, float]) -> float:
+    if gate in durations:
+        return durations[gate]
+    
+    single = next((durations[g] for g in ['sx', 'u2', 'u1'] if g in durations), None)
+    two = next((durations[g] for g in ['cx', 'cz', 'ecr'] if g in durations), None)
+    
+    fallbacks = {
+        'h': single,
+        's': single,
+        'sdg': single,
+        'x': single,
+        'y': single,
+        'z': 0,
+        'sx': single,
+        'sxdg': single,
+        'cx': two,
+        'cz': two,
+    }
+    
+    if gate in fallbacks:
+        return fallbacks[gate]
+    
+    raise ValueError(f"Unknown gate: {gate}")
 
 def get_qubit_properties(backend_name: str) -> dict:
     """
@@ -114,7 +138,7 @@ def get_qubit_properties(backend_name: str) -> dict:
         {
             qubit_index: {
                 "gates": {gate_name: gate_time_in_seconds, ...},
-                "properties": {"T1": t1_in_seconds, "T2": t2_in_seconds, "T_psi": t_psi_in_seconds}
+                "properties": {"T1": t1_in_seconds, ...}
             },
             ...
         }
@@ -150,15 +174,23 @@ def get_qubit_properties(backend_name: str) -> dict:
 
         gate_path = f"gates.[{i}].parameters."
         gate_length = jm.find_value_with_units("gate_length", gate_path)
+        gate_error = jm.find_value_with_units("gate_error", gate_path)
 
-        if gate_length is None:
+        if gate_length is None or gate_length == 0 or gate_error is None or gate_error == 0:
             continue
 
         for qubit in gate_qubits:
             if qubit not in result:
                 result[qubit] = {"gates": {}, "properties": {"T1": None, "T2": None, "T_psi": None}}
+                logging.warning("A qubit was not properly configured when creating the Pauli nm from the fake backend")
 
             result[qubit]["gates"][gate_name] = gate_length
+
+    for gate in RequiredStimGates:
+        for i, res in result.items():
+            gate_dict =  res['gates']
+            gate_length = get_gate_duration(gate, gate_dict)
+            res['gates'][gate] = gate_length
 
     return result
 
@@ -180,7 +212,7 @@ def build_pauli_noise_model(qubit_properties: dict) -> dict:
             ...
         }
     """
-    noise_model = {}
+    specific_noise_models = {}
 
     for i, qb_result in qubit_properties.items():
         props = qb_result["properties"]
@@ -190,13 +222,18 @@ def build_pauli_noise_model(qubit_properties: dict) -> dict:
             relaxation_p = 1 - survival_p
             dephasing = survival_p*(1 - exp((-2*(length/props["T_psi"]))**(1+Pauli_nm_FD)))
 
-            p_x = relaxation_p/4
+            p_x = max(0, relaxation_p/4)
             p_y = p_x
             p_z = 0.5 - p_x - sqrt(1 - relaxation_p - dephasing)/2
+            p_z = max(0, p_z)
 
             qubit_nm[gate] = {'p_x': p_x, 'p_y': p_y, 'p_z': p_z}
 
-        noise_model[i] = qubit_nm
+        specific_noise_models[i] = qubit_nm
+
+
+
+    noise_model = {"qubits": specific_noise_models, "general": {}}
 
     return noise_model
 
