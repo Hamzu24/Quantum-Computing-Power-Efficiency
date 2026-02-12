@@ -2,7 +2,8 @@ from _helpers.builders.base import builder_registry, ConfigTracker
 import logging
 from copy import deepcopy
 from _helpers.json_manager import JsonManager
-from math import sqrt, exp, cosh
+from math import sqrt, exp, cosh, log
+from statistics import median
 from scipy.constants import pi, k, hbar, e, h
 from scipy.special import k0
 from _helpers.helpers import get_config_value
@@ -49,14 +50,16 @@ class DefaultBuilder:
         # Base plasma frequency: ω_p = √(8E_J E_c)/ℏ
         w_p0 = sqrt(8 * E_J * E_c) / hbar
         
+        # NOTE: I've decided to not account for screening as it results to negligible differences in w_p
+
         # Temperature-dependent screening factor
-        delta = self.config.get("delta")
-        screening_factor = 1 - 2*sqrt(2*pi*k*T/delta) * exp(-delta/(k*T))
-        
-        if screening_factor <= 0:
-            w_p = w_p0 * 0.4  # Fallback value
-        else:
-            w_p = w_p0 * sqrt(screening_factor)
+        #delta = self.config.get("delta")
+        #screening_factor = 1 - 2*sqrt(2*pi*k*T/delta) * exp(-delta/(k*T))
+        #
+        #if screening_factor <= 0:
+        #    w_p = w_p0 * 0.4  # Fallback value
+        #else:
+        #    w_p = w_p0 * sqrt(screening_factor)
 
 
         return w_p
@@ -255,7 +258,35 @@ class DefaultBuilder:
             self.config_tracker.add_config({"config": gate_config, "actual": actual_gate_error, "calculated": calculated_error, "adjs": adjustement}, "gate")
         return gate_config
 
-    def total_init_parameter_error(self, override_config: dict, parameter: str): 
+    def calculate_T_env(self):
+        qubit_paths = self.json_manager.get_qubit_paths()
+        T_env_estimates = []
+        gamma_env_ratio = 1 - self.config.get("ymxc_y0")
+
+        for qb_path in qubit_paths:
+            p_e = self.json_manager.find_value_with_units("prob_meas1_prep0", qb_path)
+            frequency = self.json_manager.find_value_with_units("frequency", qb_path)
+
+            if p_e is None or frequency is None or p_e >= 0.5 or p_e <= 0:
+                continue
+
+            n_eff = p_e / (1 - 2 * p_e)
+
+            arg = 1 + gamma_env_ratio / n_eff
+            if arg <= 1:
+                continue
+
+            T_env_i = hbar * frequency / (k * log(arg))
+            T_env_estimates.append(T_env_i)
+
+        if not T_env_estimates:
+            logging.warning("Could not estimate T_env from any qubit. Keeping config value.")
+            return
+
+        self.config["T_env"] = median(T_env_estimates)
+        logging.debug(f"Estimated T_env = {self.config['T_env']} from {len(T_env_estimates)} qubits")
+
+    def total_init_parameter_error(self, override_config: dict, parameter: str):
         qubit_paths = self.json_manager.get_qubit_paths()
 
         sum = 0
@@ -274,6 +305,8 @@ class DefaultBuilder:
             self.config = deepcopy(existing_optimisation)
             return
             
+        self.calculate_T_env()
+
         logging.debug("\nNow optimising y0")
         optimiser_y0 = lambda cur_y0: logging.debug(f"now trying y: {cur_y0}") or self.total_init_parameter_error({"y0": cur_y0}, "T1")
         res = minimize_scalar(optimiser_y0, method='brent', options={'maxiter': 100, 'xtol': 0.0001})

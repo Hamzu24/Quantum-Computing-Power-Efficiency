@@ -31,32 +31,29 @@ from _helpers.circuit_submitter import CircuitSubmitter
 from _helpers.helpers import read_config, get_num_qubits
 
 
-# Single-qubit Clifford gates available in Stim
+# Single-qubit Clifford gates - using Stim's native single gates
+# Each is exactly 1 gate, minimizing noise accumulation
+# These 8 gates generate the full 24-element Clifford group when composed
 SINGLE_QUBIT_CLIFFORDS = [
-    # Identity (do nothing)
-    [],
-    # Paulis
-    ['X'], ['Y'], ['Z'],
-    # Hadamard variants
-    ['H'],
-    ['H', 'S'], ['H', 'S', 'S'],  ['H', 'S', 'S', 'S'],
-    # S variants
-    ['S'], ['S', 'S'], ['S', 'S', 'S'],
-    # H-S combinations (generates all 24 single-qubit Cliffords)
-    ['S', 'H'], ['S', 'S', 'H'], ['S', 'S', 'S', 'H'],
-    ['H', 'S', 'H'], ['H', 'S', 'S', 'H'], ['H', 'S', 'S', 'S', 'H'],
-    ['S', 'H', 'S'], ['S', 'H', 'S', 'S'], ['S', 'H', 'S', 'S', 'S'],
-    ['S', 'S', 'H', 'S'], ['S', 'S', 'H', 'S', 'S'],
-    ['S', 'S', 'S', 'H', 'S'],
+    ['I'],          # Identity
+    ['X'],          # Pauli X
+    ['Y'],          # Pauli Y
+    ['Z'],          # Pauli Z
+    ['H'],          # Hadamard
+    ['S'],          # S gate (sqrt Z)
+    ['S_DAG'],      # S dagger
+    ['SQRT_X'],     # sqrt X
 ]
 
-# Two-qubit entangling gates available in Stim
-TWO_QUBIT_ENTANGLERS = ['CNOT', 'CZ', 'ISWAP', 'SWAP']
+# Two-qubit entangling gates - only CNOT and CZ (1 interaction each)
+# Avoiding SWAP (3 CNOTs) and ISWAP (2 CNOTs worth) to match standard QV
+TWO_QUBIT_ENTANGLERS = ['CNOT', 'CZ']
 
 
 def apply_random_single_qubit_clifford(circuit: stim.Circuit, qubit: int, rng: np.random.Generator) -> None:
     """Apply a random single-qubit Clifford gate to a qubit."""
-    gates = rng.choice(SINGLE_QUBIT_CLIFFORDS)
+    idx = rng.integers(0, len(SINGLE_QUBIT_CLIFFORDS))
+    gates = SINGLE_QUBIT_CLIFFORDS[idx]
     for gate in gates:
         circuit.append(gate, [qubit])
 
@@ -244,15 +241,15 @@ def run_clifford_qv_benchmark(
         trial_results.append(result)
         hops.append(result['heavy_output_probability'])
 
-    mean_hop = np.mean(hops)
-    std_hop = np.std(hops)
+    mean_hop = float(np.mean(hops))
+    std_hop = float(np.std(hops))
     num_passed = sum(1 for r in trial_results if r['passed'])
-    pass_rate = num_passed / num_trials
+    pass_rate = float(num_passed / num_trials)
 
     # QV is achieved if mean HOP > 2/3 with high confidence
     # Using 2-sigma confidence interval
-    hop_lower_bound = mean_hop - 2 * std_hop / np.sqrt(num_trials)
-    qv_achieved = hop_lower_bound > 2/3
+    hop_lower_bound = float(mean_hop - 2 * std_hop / np.sqrt(num_trials))
+    qv_achieved = bool(hop_lower_bound > 2/3)
 
     return {
         'n_qubits': n_qubits,

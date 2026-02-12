@@ -196,22 +196,22 @@ Here is an overview of the system architecture:
 
 \begin{figure}[htbp]
 	\centering
-	\includegraphics[width=0.5\textwidth]{images/experiment-3-grover.png}
+	\includegraphics[width=\linewidth]{images/experiment-3-grover.png}
 	\caption{Performance on Grover's algorithm using Auckland Fake Backend}
-	\label{fig:myimage}
+	\label{fig:myimage1}
 \end{figure}
 
-\begin{figure}[htbp]
+\begin{figure}[H]
 	\centering
-	\includegraphics[width=0.5\textwidth]{images/experiment-4-grover.png}
+	\includegraphics[width=\linewidth]{images/experiment-4-grover.png}
 	\caption{Performance on Grover's algorithm using CairoV2 Fake Backend}
 	\label{fig:myimage}
 \end{figure}
 
 These are both V2, Falcon R5 backends released around late 2021. You can see a stable drop in performance with increased qubit counts.
 
+\subsection{Preface of Result Validity}
 
-\subsection{Result Validity}
 The validity of these results hinges primarily upon the correctness of the code used to generate them. Thus, we have generated an extensive suite of unit tests to ensure the framework is operating as expected.
 
 Moreover, the validity and applicability of these results further hinges upon the use of correct and properly catalogued assumptions used to generate them. We employ the following to mitigate the risks of compromising these qualities:
@@ -230,6 +230,10 @@ There are a few assumptions that due to the inherent limitations of the simulati
 	\item All noise models are Markovian
 \end{itemize}
 
+For all further assumptions, reference specific assumption sets on a per case study basis. The theory behind some of the assumptions is listed in the third subsection.
+
+\subsection{Case Studies}
+
 \subsubsection{Case Study 1: \textbf{Quantum Volume, Simple Arrhenius Noise Model}}
 
 %Let me go through a brief overview of how results are generated:
@@ -242,32 +246,47 @@ There are a few assumptions that due to the inherent limitations of the simulati
 
 
 
+\subsection{Assumptions}
+
 \subsubsection{Hardware Parameters}
 
 I make the following modelling assumptions for the IBM processors:
 
+All data mentioned below is IBM calibration data pulled directly from the latest github commit.
+
 We use the following hardware parameters in the temperature dependent model:
 \begin{itemize}
-	\item $\gamma_0$ is fit at runtime to the known values of $T_1$ at the default operational mixing chamber temperature
+	\item $\gamma_0$ is fit at runtime
 	      \begin{itemize}
-		      \item Assume the operational cryostat temperature to be 0.013K
+		      \item It is calculated by minimising the squared error between the estimated and actual T1 values, keeping all other model parameters constant
+		      \item To produce the estimated T1 values, we assume such data is generated at the default operational MXC temperature, which is taken as 0.013K
+		      \item To retain per-qubit accuracy, we calculate and store the multiplicative error of each qubit's T1 value at the operational temperature, and adjust all estimates for T1 values at other temperatures with this multiplicative factor
+		      \item An improvement for future builder classes would be to store a value for $\gamma_0$ on a per qubit basis instead of averaging
 	      \end{itemize}
-	\item $\gamma_{\varphi-\text{base}}$ is fit at runtime to the known values of $T_2$ at the default operational mixing chamber temperature
+	\item $\gamma_{\varphi-\text{base}}$ is fit at runtime
 	      \begin{itemize}
-		      \item Again, assume the operational cryostat temperature to be 0.013K
+		      \item It is calculated by minimising the squared error between the estimated and actual T2 values, keeping all other model parameters constant
+		      \item This is calculated after estimating $gamma_0$
+		      \item We assume such data is generated at operational MXC temperature, which is taken as 0.013K
+		      \item As before, to retain per-qubit accuracy we calculate and store the multiplicative error of each qubit's T2 value at the operational temperature and adjust all estimates for T2 values at other temperatures with this multiplicative factor
+		      \item An improvement for future builder classes would be to store a value for $\gamma_{\varphi-\text{base}}$ on a per qubit basis instead of averaging
 	      \end{itemize}
-	\item $\frac{\gamma_{MXC}}{\gamma_0}$ is $0.85$.
+	\item $\frac{\gamma_{MXC}}{\gamma_0}$ is estimated as $0.9$
 	      \begin{itemize}
-		      \item This represents the maximum value from the experimental dataset reported in Ref.~\cite{lvov2025thermometry}.
+		      \item The maximum value from the experimental dataset reported in Ref.~\cite{lvov2025thermometry} is 0.85.
+		      \item We can assume this is using standard lab equipment, making 0.9 a lower bound for professional IBM architecture
 	      \end{itemize}
-	\item $T_{env}$ as 30mK
+	\item $T_{env}$ is fit at runtime
 	      \begin{itemize}
-		      \item Effective temperatures as low as 20mK have been observed Ref.~\cite{simbierowicz2024thermal_noise}.
+		      \item It is calculated by estimating a value for each qubit and taking the median
+		      \item prob\_meas1\_prep0 is extracted for each qubit, and used alongside previously estimated parameters and equations from ~\cite{lvov2025thermometry} to estimate $T_env$, as described in Section~\ref{sec:T_env-estimation}
 	      \end{itemize}
-	\item $\Delta$ (superconducting energy gap) of $2.88e^{-23}$
+	\item $\Delta$ (superconducting energy gap) of $50,000$
 	      \begin{itemize}
 		      \item This is the known value for Aluminium, which we can assume the electrodes used in IBM transmon qubits are made of
 	      \end{itemize}
+	\item Subgap Transparency is set at 0.00005
+	\item $R_n$, or normal state resistance, is set at 5000
 	\item $\omega_{ge}$ is extracted from known configuration data for each backend individually for each qubit
 	\item $N_e$, the number of effective channels in the Josephson Junction, is estimated at $1.29\times10^{5}$. We calculate this value using:
 	      \begin{itemize}
@@ -278,13 +297,32 @@ We use the following hardware parameters in the temperature dependent model:
 	\item $E_j$, josephson energy of the transmon qubits, of $62.1\mu$eV
 \end{itemize}
 
-Starting with an estimated value of $\gamma_0$: $5e3$, and an estimated standard operational cryostat temperature of 0.013K, we minimise the squared error
-between the calculated and known, default relaxation time of the qubits. We then do the same for the value of $\gamma_{\varphi-\text{base}}$ keeping $\gamma_0$ constant
-
-The final scale factors for the value of $T_1$ and $T_2$ for each qubit are stored and applied to the calculated values to maintain granularity
-
 When calculating gate errors, the difference between the known gate error and calculated gate error at the operational temperature is stored and assumed to be
 representative of the non-thermal error, and thus independent of temperature. It is then added to future calculated gate errors
+
+\subsection{Theory}
+
+\label{sec:T_env-estimation}
+$T_env$ is calculated in the Default Builder using the following pathway:
+\begin{itemize}
+	\item First the probability of measuring $\ket{1}$ after preparing $\ket{0}$ is extracted for each qubit
+	\item The residual excited state population, $p_e$, as estimated as equal to this value.
+	\item The number of effective thermal photons is estimated using from the Bose-Einstein distribution and assumption of normalisation ($p_e + p_g = 1$):
+	      \[
+		      n_{\text{eff}} = \frac{p_e}{1 - 2*p_e}
+	      \]
+	\item Following the two-bath model of Ref.~\cite{lvov2025thermometry}, $n_{\text{eff}}$ is given by [Eq.~(14)]:
+	      \[
+		      n_\text{eff} = \frac{\gamma_\text{MXC}}{\gamma_1^0} n(\omega_{ge}, T_\text{MXC}) + \frac{\gamma_\text{env}}{\gamma_1^0} n(\omega_{ge}, T_\text{env})
+	      \]
+	\item Now, taking $n(\omega_{ge}, T_\text{MXC})$ to be negligible and rearranging for $T_{\text{env}}$ we get:
+	      \[
+		      T_\text{env} = \frac{\hbar\omega_{ge}}{k_B \ln\!\left(1 + \frac{\gamma_\text{env}}{\gamma_1\,n_\text{eff}}\right)}
+	      \]
+	\item We can then use qubit specific values of $\omega_{ge}$, and the $\gamma_1$ term cancels out
+\end{itemize}
+
+Note that this is an upper bound, and thus safely overestimates noise.
 
 \bibliography{references.bib}
 \end{document}
