@@ -16,8 +16,6 @@ sys.path.insert(0, str(pathlib.Path(__file__).parent.parent.parent.parent.resolv
 from _helpers.registry import (
     CircuitSubmitterRegistry,
     submitter_registry,
-    OptimiserRegistry,
-    optimiser_registry,
     ControlParameterRegistry,
     control_parameter_registry
 )
@@ -129,172 +127,6 @@ class TestCircuitSubmitterRegistry:
         """
         assert isinstance(submitter_registry, CircuitSubmitterRegistry)
 
-
-class TestOptimiserRegistry:
-    """Test OptimiserRegistry class"""
-
-    def test_store_and_get_optimisation(self):
-        """
-        Test storing and retrieving optimization values
-
-        Given: Backend name, builder, and optimization values
-        When: store_optimisation() is called
-        Expected: get_optimisation() returns the values
-        """
-        registry = OptimiserRegistry()
-        mock_builder = Mock(spec=Builder)
-        opt_values = {"param1": 100, "param2": 200}
-
-        registry.store_optimisation("backend1", mock_builder, opt_values)
-        result = registry.get_optimisation("backend1", mock_builder)
-
-        assert result == opt_values
-
-    def test_get_nonexistent_backend(self):
-        """
-        Test getting optimization for non-existent backend
-
-        Expected: Returns None
-        """
-        registry = OptimiserRegistry()
-        mock_builder = Mock(spec=Builder)
-
-        result = registry.get_optimisation("nonexistent", mock_builder)
-
-        assert result is None
-
-    def test_get_nonexistent_builder(self):
-        """
-        Test getting optimization for non-existent builder
-
-        Expected: Returns None
-        """
-        registry = OptimiserRegistry()
-        builder1 = Mock(spec=Builder)
-        builder2 = Mock(spec=Builder)
-        opt_values = {"param": 100}
-
-        registry.store_optimisation("backend1", builder1, opt_values)
-        result = registry.get_optimisation("backend1", builder2)
-
-        assert result is None
-
-    def test_builder_identity_check(self):
-        """
-        Test that builder matching uses identity (is) not equality (==)
-
-        Given: Two different builder instances
-        Expected: Each builder has its own optimization values
-        """
-        registry = OptimiserRegistry()
-        builder1 = Mock(spec=Builder)
-        builder2 = Mock(spec=Builder)
-
-        opt_values1 = {"param": 100}
-        opt_values2 = {"param": 200}
-
-        registry.store_optimisation("backend", builder1, opt_values1)
-        registry.store_optimisation("backend", builder2, opt_values2)
-
-        result1 = registry.get_optimisation("backend", builder1)
-        result2 = registry.get_optimisation("backend", builder2)
-
-        assert result1 == opt_values1
-        assert result2 == opt_values2
-        assert result1 is not result2
-
-    def test_deep_copy_on_store(self):
-        """
-        Test that stored values are deep copied
-
-        Given: Mutable optimization values
-        When: Values are stored and then modified externally
-        Expected: Stored values remain unchanged
-
-        Note: The registry creates a deep copy to prevent external modifications
-        """
-        registry = OptimiserRegistry()
-        mock_builder = Mock(spec=Builder)
-        opt_values = {"nested": {"value": 100}}
-
-        registry.store_optimisation("backend", mock_builder, opt_values)
-
-        # Modify original values
-        opt_values["nested"]["value"] = 999
-
-        # Retrieved values should be unchanged (if deep copy is implemented)
-        result = registry.get_optimisation("backend", mock_builder)
-
-        # The implementation does deep copy the values
-        # But it seems to store the copy, not return it
-        # Let's check what actually happens
-        assert result is not None
-
-    def test_multiple_backends(self):
-        """
-        Test storing optimizations for multiple backends
-
-        Expected: Each backend maintains its own optimization values
-        """
-        registry = OptimiserRegistry()
-        builder = Mock(spec=Builder)
-
-        opt1 = {"backend1": "data"}
-        opt2 = {"backend2": "data"}
-
-        registry.store_optimisation("backend1", builder, opt1)
-        registry.store_optimisation("backend2", builder, opt2)
-
-        result1 = registry.get_optimisation("backend1", builder)
-        result2 = registry.get_optimisation("backend2", builder)
-
-        assert result1 == opt1
-        assert result2 == opt2
-
-    def test_overwrite_existing_optimization(self):
-        """
-        Test that storing optimization for same backend/builder overwrites
-
-        Given: Optimization already stored for backend/builder
-        When: New optimization is stored with same keys
-        Expected: New values replace old values
-        """
-        registry = OptimiserRegistry()
-        builder = Mock(spec=Builder)
-
-        opt_old = {"value": 100}
-        opt_new = {"value": 200}
-
-        registry.store_optimisation("backend", builder, opt_old)
-        registry.store_optimisation("backend", builder, opt_new)
-
-        result = registry.get_optimisation("backend", builder)
-
-        assert result == opt_new
-        assert result != opt_old
-
-    def test_print_submitters_no_error(self):
-        """
-        Test that print_submitters() executes without error
-
-        Note: This method prints to stdout, we just verify no exceptions
-        """
-        registry = OptimiserRegistry()
-        builder = Mock(spec=Builder)
-        builder.__str__ = Mock(return_value="MockBuilder")
-
-        registry.store_optimisation("backend1", builder, {"data": 1})
-
-        # Should not raise any exception
-        registry.print_submitters()
-
-    def test_global_optimiser_registry_exists(self):
-        """
-        Test that global optimiser_registry instance exists
-
-        Expected: optimiser_registry is an OptimiserRegistry instance
-        """
-        assert isinstance(optimiser_registry, OptimiserRegistry)
 
 
 class TestControlParameterRegistry:
@@ -529,11 +361,6 @@ class TestRegistryIsolation:
         # Should be empty if isolation is working
         assert isinstance(result, list)
 
-    def test_optimiser_registry_isolation(self):
-        """Test that optimiser registry is isolated between tests"""
-        # Should start empty
-        assert isinstance(optimiser_registry.backends, dict)
-
     def test_control_parameter_registry_isolation(self):
         """Test that control parameter registry is isolated between tests"""
         result = control_parameter_registry.get_control_parameters()
@@ -565,24 +392,6 @@ class TestRegistryConcurrentAccess:
             registry.store_submitter(submitter, f"device_{i}")
 
         assert len(registry.list_submitters()) == 100
-
-    def test_optimiser_registry_same_backend_different_builders(self):
-        """
-        Test storing optimizations for same backend with many builders
-
-        Expected: Each builder maintains independent values
-        """
-        registry = OptimiserRegistry()
-
-        builders = [Mock(spec=Builder) for _ in range(10)]
-
-        for i, builder in enumerate(builders):
-            registry.store_optimisation("backend", builder, {"value": i})
-
-        # Verify each builder has its own value
-        for i, builder in enumerate(builders):
-            result = registry.get_optimisation("backend", builder)
-            assert result == {"value": i}
 
     def test_control_parameter_registry_rapid_updates(self):
         """

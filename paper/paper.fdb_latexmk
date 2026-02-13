@@ -1,14 +1,14 @@
 # Fdb version 4
-["bibtex paper"] 1770346480.95023 "paper.aux" "paper.bbl" "paper" 1770856774.17636 0
-  "./paperNotes.bib" 1770856773.33585 103 48ad29797468f16e2853d8797278d7af ""
-  "./references.bib" 1754941513.32282 751 931bfdf1141c40b5e9164cda2728f835 ""
+["bibtex paper"] 1770942408.2443 "paper.aux" "paper.bbl" "paper" 1770942500.66175 0
+  "./paperNotes.bib" 1770942499.79707 103 48ad29797468f16e2853d8797278d7af ""
+  "./references.bib" 1770933958.84086 3327 83051aaa3456ad9d59947f087cad2394 ""
   "/usr/share/texlive/texmf-dist/bibtex/bst/revtex4-1/apsrev4-1.bst" 1602107945 71515 e333383ed72bf24aa6de7e8cabb55f84 ""
-  "paper.aux" 1770856773.33485 3315 4d76fc07fb6fdeb815e1ff828d259cbb "pdflatex"
+  "paper.aux" 1770942499.79507 6544 55836a652527e5ab6f95186ab8bbbe8d "pdflatex"
   (generated)
   "paper.bbl"
   "paper.blg"
   (rewritten before read)
-["pdflatex"] 1770856770.82307 "paper.tex" "paper.pdf" "paper" 1770856774.17687 0
+["pdflatex"] 1770942497.34989 "paper.tex" "paper.pdf" "paper" 1770942500.66232 0
   "/etc/texmf/web2c/texmf.cnf" 1760473365.98732 475 c0e671620eb5563b2130f56340a5fde8 ""
   "/home/hamza/.texlive2023/texmf-var/web2c/pdftex/pdflatex.fmt" 1754928385 6800787 65d82984fbed2d0031b990118f10b2e0 ""
   "/usr/share/texlive/texmf-dist/fonts/map/fontname/texfonts.map" 1577235249 3524 cb3e574dea2d1052e39280babc910dc8 ""
@@ -34,6 +34,7 @@
   "/usr/share/texlive/texmf-dist/fonts/tfm/public/cm/cmmib10.tfm" 1136768653 1524 554068197b70979a55370e6c6495f441 ""
   "/usr/share/texlive/texmf-dist/fonts/tfm/public/cm/cmr12.tfm" 1136768653 1288 655e228510b4c2a1abe905c368440826 ""
   "/usr/share/texlive/texmf-dist/fonts/tfm/public/cm/cmr9.tfm" 1136768653 1292 6b21b9c2c7bebb38aa2273f7ca0fb3af ""
+  "/usr/share/texlive/texmf-dist/fonts/tfm/public/cm/cmti10.tfm" 1136768653 1480 aa8e34af0eb6a2941b776984cf1dfdc4 ""
   "/usr/share/texlive/texmf-dist/fonts/tfm/public/cm/cmti9.tfm" 1136768653 1476 cccc6cc4935c18ec3d5623b77ecb8b74 ""
   "/usr/share/texlive/texmf-dist/fonts/tfm/public/latex-fonts/lasy6.tfm" 1136768653 520 4889cce2180234b97cad636b6039c722 ""
   "/usr/share/texlive/texmf-dist/fonts/tfm/public/rsfs/rsfs10.tfm" 1229303445 688 37338d6ab346c2f1466b29e195316aa4 ""
@@ -44,7 +45,6 @@
   "/usr/share/texlive/texmf-dist/fonts/tfm/public/xypic/xybtip10.tfm" 1381187214 608 50246cc71b0635b0ba0a5c10a0bf4257 ""
   "/usr/share/texlive/texmf-dist/fonts/tfm/public/xypic/xycirc10.tfm" 1381187214 844 3393210079fb4ed9347e214b3bfd7c1a ""
   "/usr/share/texlive/texmf-dist/fonts/tfm/public/xypic/xydash10.tfm" 1381187214 984 5c01c46b93e3ba8369f3f8edc6e62aef ""
-  "/usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb" 1248133631 34811 78b52f49e893bcba91bd7581cdc144c0 ""
   "/usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb" 1248133631 32080 340ef9bf63678554ee606688e7b5339d ""
   "/usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx9.pfb" 1248133631 32298 c6d25bb16d1eac01ebdc6d7084126a1e ""
   "/usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmbxti10.pfb" 1248133631 36554 b67dc2cfa451409e100b3fcf5f506509 ""
@@ -58,6 +58,7 @@
   "/usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr9.pfb" 1248133631 33993 9b89b85fd2d9df0482bd47194d1d3bf3 ""
   "/usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb" 1248133631 32569 5e5ddc8df908dea60932f3c484a54c0d ""
   "/usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb" 1248133631 32716 08e384dc442464e7285e891af9f45947 ""
+  "/usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmti10.pfb" 1248133631 37944 359e864bd06cde3b1cf57bb20757fb06 ""
   "/usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmti9.pfb" 1248133631 36310 f5ddc6715cc60deb16d9db5ded6a9391 ""
   "/usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/symbols/msbm10.pfb" 1248133631 34694 ad62b13721ee8eda1dcc8993c8bd7041 ""
   "/usr/share/texlive/texmf-dist/tex/context/base/mkii/supp-pdf.mkii" 1461363279 71627 94eb9990bed73c364d7f53f960cc8c5b ""
@@ -227,10 +228,10 @@
   "/var/lib/texmf/fonts/map/pdftex/updmap/pdftex.map" 1760473378.81531 5472669 54eaf61a88b6b7896ebd0dac973cb29c ""
   "images/experiment-3-grover.png" 1769063895.77244 124998 9a5d2cd70f1c7adf48c69f12fcbb006e ""
   "images/experiment-4-grover.png" 1769063852.68599 108070 cfa18cb6588d7c1a44786d613997893e ""
-  "paper.aux" 1770856773.33485 3315 4d76fc07fb6fdeb815e1ff828d259cbb "pdflatex"
-  "paper.bbl" 1770346481.01832 2798 7f96d0e7cd173af9ddfb5a4a892e1404 "bibtex paper"
-  "paper.out" 1770856773.33585 2166 9b3acfcd08b2617b5a8dd0dcebf4b676 "pdflatex"
-  "paper.tex" 1770856764.50379 14732 878df616486f76a8fe439abbf43c6bce ""
+  "paper.aux" 1770942499.79507 6544 55836a652527e5ab6f95186ab8bbbe8d "pdflatex"
+  "paper.bbl" 1770942408.44128 8545 390747eb2ad0952f51218ae461473b6c "bibtex paper"
+  "paper.out" 1770942499.79707 2847 2e20a0a2ba3743c2cd04a36b5fd28ac9 "pdflatex"
+  "paper.tex" 1770942495.56704 22222 241adfd0b48c4d8968105253860d9345 ""
   (generated)
   "paper.aux"
   "paper.log"

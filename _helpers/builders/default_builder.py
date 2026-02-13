@@ -1,14 +1,11 @@
 from _helpers.builders.base import builder_registry, ConfigTracker
 import logging
-from copy import deepcopy
 from _helpers.json_manager import JsonManager
 from math import sqrt, exp, cosh, log
 from statistics import median
 from scipy.constants import pi, k, hbar, e, h
 from scipy.special import k0
 from _helpers.helpers import get_config_value
-from _helpers.registry import optimiser_registry
-from scipy.optimize import minimize_scalar
 
 @builder_registry.register_builder
 class DefaultBuilder:
@@ -19,246 +16,22 @@ class DefaultBuilder:
         self.init_T=get_config_value(init_control_parameters, "temperature")
         if self.init_T is None:
             raise ValueError("The expected key 'temperature' is not present in the control parameters dictionary!")
-        self.calculated_values = {}
         self.is_valid()
         self.json_manager = jm
         self.config_tracker = ConfigTracker()
+        self._qubit_params_cache = {}
 
     def is_valid(self):
-        required_params = [
-            "y0", "ymxc_y0", "T_env", "gamma_psi_base", 
-            "delta", "E_c", "E_J", "R_n", "subgap_transparency"
-        ]
-        
+        required_params = ["delta", "ymxc_y0", "subgap_transparency"]
+
         for param in required_params:
             if self.config.get(param) is None:
                 raise ValueError(f"Missing the required param: '{param}' in the hardware constants group that contains the backend {self.name}")
 
-    def x_qp(self, T: float):
-        """Equilibrium quasiparticle density"""
+    # ── Per-qubit initialization ──────────────────────────────────────
 
-        delta = self.config.get("delta")
-        x_qp = sqrt(2*pi*k*T/delta) * exp(-delta/(k*T))
-
-        return x_qp
-    
-    def w_p(self, T: float):
-        """Plasma frequency with temperature-dependent screening"""
-        E_J = self.config.get("E_J")
-        E_c = self.config.get("E_c")
-        
-        # Base plasma frequency: ω_p = √(8E_J E_c)/ℏ
-        w_p0 = sqrt(8 * E_J * E_c) / hbar
-        
-        # NOTE: I've decided to not account for screening as it results to negligible differences in w_p
-
-        # Temperature-dependent screening factor
-        #delta = self.config.get("delta")
-        #screening_factor = 1 - 2*sqrt(2*pi*k*T/delta) * exp(-delta/(k*T))
-        #
-        #if screening_factor <= 0:
-        #    w_p = w_p0 * 0.4  # Fallback value
-        #else:
-        #    w_p = w_p0 * sqrt(screening_factor)
-
-
-        return w_p
-
-    def bose_einstein(self, w: float, T: float):
-        """Bose-Einstein distribution"""
-        x = (hbar*w) / (k * T)
-        if x > 700:  # Prevent overflow
-            return 0.0
-        return 1.0 / (exp(x) - 1.0)
-    
-    def n_eff(self, T: float, frequency: float):
-        """Effective photon number from two-bath model (Paper 1, Eq. 14)"""
-        w_ge = frequency
-        gamma_MXC_ratio = self.config.get("ymxc_y0")  # γ_MXC/γ_0
-        T_env = self.config.get("T_env")
-        
-        n_MXC = self.bose_einstein(w_ge, T)
-        n_env = self.bose_einstein(w_ge, T_env)
-        
-        n_eff = gamma_MXC_ratio * n_MXC + (1 - gamma_MXC_ratio) * n_env
-
-        return n_eff
-    
-    def gamma_qp(self, T: float, frequency: float):
-        """Quasiparticle-induced relaxation rate (Paper 1, Eq. 26)"""
-        delta = self.config.get("delta")
-        w_ge = frequency
-        
-        x_qp = self.x_qp(T)
-        w_p = self.w_p(T)
-
-        # First term: x_qp * sqrt(2Δ/ℏω_ge)
-        term1 = x_qp * sqrt(2*delta/(hbar*w_ge))
-        
-        # Second term: 4*exp(-Δ/k_B T) * cosh(ℏω_ge/(2k_B T)) * K_0(ℏω_ge/(2k_B T))
-        arg = hbar*w_ge/(2*k*T)
-        if arg > 700:  # Prevent overflow
-            term2 = 0.0
-        else:
-            term2 = 4*exp(-delta/(k*T)) * cosh(arg) * k0(arg)
-        
-        gamma_qp = (w_p**2)/(pi*w_ge) * (term1 + term2)
-        
-        return gamma_qp
-    
-    def T1(self, T: float, frequency: float) -> float:
-        """Energy relaxation time (Paper 1, Eq. 27)"""
-        gamma_qp = self.gamma_qp(T, frequency)
-        n_eff = self.n_eff(T, frequency)
-        y0 = self.config.get("y0")
-        
-        # T1 = 1/[γ_qp(T) + γ_0(2n_eff + 1)]
-        T1 = 1/(gamma_qp + y0*(2*n_eff + 1))
-        
-        return T1
-    
-    def gamma_psi_qp(self, T: float, frequency: float):
-        """Quasiparticle-induced dephasing rate (Paper 1, Eq. 29)"""
-        w_p = self.w_p(T)
-        w_ge = frequency
-        delta = self.config.get("delta")
-        R_n = self.config.get("R_n")
-        subgap_transparency = self.config.get("subgap_transparency")
-        g_t = 1/R_n
-        g_k = (e**2) / h
-        N_e = 1/(subgap_transparency) * (g_t/(2*g_k))
-        
-        # x_A_qp = exp(-Δ/k_B T) (Andreev state occupation)
-        if delta/(k*T) > 700:  # Prevent overflow
-            x_A_qp = 0.0
-        else:
-            x_A_qp = exp(-delta/(k*T))
-        
-        gamma_psi_qp = 4*pi*(w_p**2/w_ge) * sqrt(x_A_qp/N_e)
-        
-        return gamma_psi_qp
-    
-    def T2(self, T: float, frequency: float) -> float:
-        """Total Dephasing time, or T2*"""
-        T1 = self.T1(T, frequency)
-        gamma_psi_qp = self.gamma_psi_qp(T, frequency)
-        gamma_psi_base = self.config.get("gamma_psi_base")
-        
-        # T2 = 1/(1/(2T1) + γ_φ_base + γ_φ_qp)
-        T_psi = self.T_psi(T, frequency)
-        T2 = 1/(1/(2*T1) + 1/(T_psi))
-        
-        return T2
-    
-    def T_psi(self, T: float, frequency: float):
-        """Pure Dephasing time"""
-        gamma_psi_qp = self.gamma_psi_qp(T, frequency)
-        gamma_psi_base = self.config.get("gamma_psi_base")
-        T_psi = 1/(gamma_psi_base + gamma_psi_qp)
-
-        return T_psi
-    
-    def F_N(self, T: float, N: int, gate_length: float, frequency: float) -> float:
-        """Gate fidelity when only accounting for thermal sources of error (Paper 2, Eq. 6)"""
-        T1 = self.T1(T, frequency)
-        T_psi = self.T_psi(T, frequency)
-        d = 2 ** N  # Dimension of Hilbert space
-
-        F_N = 1 - (d*N*gate_length)/(2*(d+1)) * (1/T1 + 1/T_psi)
-        #return min(max(0, F_N), 1)
-
-        return F_N
-    
-    def calculate_parameter_error(self, T: float, qb_path: str, type="ratio", parameter="T1", override_config: dict = None):
-        if override_config is not None:
-            original_config = deepcopy(self.config)
-            for key, val in override_config.items():
-                self.config[key] = val
-            self.is_valid()
-        
-        frequency = self.json_manager.find_value_with_units("frequency", qb_path)
-
-        actual_parameter = self.json_manager.find_value_with_units(parameter, qb_path)
-        if parameter == "T1":
-            calculated_parameter = self.T1(T, frequency)
-        elif parameter == "T2":
-            calculated_parameter = self.T2(T, frequency)
-        else:
-            raise ValueError(f"Invalid parameter type of {parameter} when trying to calculate a qubit parameter error")
-
-        logging.debug(f"calculated_{parameter}: {calculated_parameter} at temperature {T}")
-        if type == "ratio":
-            error =     actual_parameter / calculated_parameter
-        elif type == "square":
-            error = (actual_parameter - calculated_parameter) ** 2
-        elif type == "relative":
-            error = abs(calculated_parameter - actual_parameter) / abs(actual_parameter)
-        else:
-            raise ValueError(f"Invalid error type of {type} when trying to calculate a qubit error for parameter {parameter}")
-        logging.debug(f"error (of type {type}): {error}")
-
-        if override_config is not None:
-            self.config = original_config
-        
-        return error, actual_parameter, calculated_parameter
-
-    def calculate_qb_config(self, control_parameters: dict, qb_path: str):
-        logging.debug(f"Calculating a qb config now\n")
-        adj_T1, actual_T1, calculated_T1 = self.calculate_parameter_error(self.init_T, qb_path, "ratio", "T1")
-        adj_T2, actual_T2, calculated_T2 = self.calculate_parameter_error(self.init_T, qb_path, "ratio", "T2")
-
-        T = get_config_value(control_parameters, "temperature")
-        frequency = self.json_manager.find_value_with_units("frequency", qb_path)
-
-        T1 = self.T1(T, frequency) * adj_T1
-        logging.debug(f"working_T1: {T1} at temperature {T}")
-        T2 = self.T2(T, frequency) * adj_T2
-        logging.debug(f"working_T2: {T2} at temperature {T}")
-
-        qb_config = {"T1": T1, "T2": T2}
-        logging.debug(f"ending qb calculations with the following config: {qb_config}")
-
-        self.config_tracker.add_config({"config": qb_config, "actual": {"T1": actual_T1, "T2": actual_T2}, "calculated": {"T1": calculated_T1, "T2": calculated_T2}, "adjs": {"T1": adj_T1, "T2": adj_T2}}, "qb")
-        return qb_config
-    
-    def calculate_gate_config(self, control_parameters: dict, gate_path: str):
-        logging.debug(f"Calculating a gate config now\n")
-        gate_param_path = gate_path + "parameters."
-
-        relevant_qubits = self.json_manager.resolve(gate_path + "qubits")
-        N = len(relevant_qubits)
-        freq_sum = 0
-        for qb_num in relevant_qubits:
-            qb_path = f"qubits.[{qb_num}]."
-            freq = self.json_manager.find_value_with_units("frequency", qb_path)
-            freq_sum += freq
-        
-        avg_frequency = freq_sum / N
-
-        actual_gate_error = self.json_manager.find_value_with_units("gate_error", gate_param_path)
-        gate_length = self.json_manager.find_value_with_units("gate_length", gate_param_path)
-        logging.debug(f"gate_length: {gate_length}")
-
-        calculated_error = 1 - self.F_N(self.init_T, N, gate_length, avg_frequency)
-        if actual_gate_error:
-            adjustement = calculated_error - actual_gate_error
-            logging.debug(f"for initial temperature of {self.init_T}:\n actual_error: {actual_gate_error}, calculated_error: {calculated_error}, gate adjustement: {adjustement}")
-
-        working_T = get_config_value(control_parameters, "temperature")
-            
-        if actual_gate_error:
-            working_gate_error = max(0, min(1, (1-self.F_N(working_T, N, gate_length, avg_frequency)) - adjustement))
-        else:
-            working_gate_error = None
-        logging.debug(f"working_gate_error: {working_gate_error} at temperature {working_T}")
-        logging.debug(f"ending gate calculations with the following config: gate_error: {working_gate_error}")
-
-        gate_config = {"gate_error": working_gate_error}
-        if actual_gate_error:
-            self.config_tracker.add_config({"config": gate_config, "actual": actual_gate_error, "calculated": calculated_error, "adjs": adjustement}, "gate")
-        return gate_config
-
-    def calculate_T_env(self):
+    def _compute_median_T_env(self):
+        """Compute T_env per qubit from readout data, return the median."""
         qubit_paths = self.json_manager.get_qubit_paths()
         T_env_estimates = []
         gamma_env_ratio = 1 - self.config.get("ymxc_y0")
@@ -266,6 +39,7 @@ class DefaultBuilder:
         for qb_path in qubit_paths:
             p_e = self.json_manager.find_value_with_units("prob_meas1_prep0", qb_path)
             frequency = self.json_manager.find_value_with_units("frequency", qb_path)
+            w_ge = 2 * pi * frequency
 
             if p_e is None or frequency is None or p_e >= 0.5 or p_e <= 0:
                 continue
@@ -276,50 +50,225 @@ class DefaultBuilder:
             if arg <= 1:
                 continue
 
-            T_env_i = hbar * frequency / (k * log(arg))
+            T_env_i = hbar * w_ge / (k * log(arg))
             T_env_estimates.append(T_env_i)
 
         if not T_env_estimates:
-            logging.warning("Could not estimate T_env from any qubit. Keeping config value.")
-            return
+            logging.warning("Could not estimate T_env from any qubit. Using init_T as fallback.")
+            return self.init_T
 
-        self.config["T_env"] = median(T_env_estimates)
-        logging.debug(f"Estimated T_env = {self.config['T_env']} from {len(T_env_estimates)} qubits")
+        return median(T_env_estimates)
 
-    def total_init_parameter_error(self, override_config: dict, parameter: str):
-        qubit_paths = self.json_manager.get_qubit_paths()
+    def _derive_qubit_params(self, qb_path: str) -> dict:
+        """Derive all per-qubit physics parameters (Steps 1-9 from parameters.md)."""
+        frequency = self.json_manager.find_value_with_units("frequency", qb_path)
+        w_ge = 2 * pi * frequency
 
-        sum = 0
-        num_qb = 0
-        for qb_path in qubit_paths:
-            error, _, _ = self.calculate_parameter_error(self.init_T, qb_path, "relative", parameter, override_config)
-            sum += error
-            num_qb += 1
-        
-        sum /= num_qb
-        return sum
-    
-    def optimise_parameters(self):
-        existing_optimisation = optimiser_registry.get_optimisation(self.name, self.__class__)
-        if existing_optimisation is not None:
-            self.config = deepcopy(existing_optimisation)
-            return
-            
-        self.calculate_T_env()
+        # Step 1: E_c from anharmonicity (fallback to global config)
+        anharmonicity = self.json_manager.find_value_with_units("anharmonicity", qb_path)
+        if anharmonicity is not None:
+            E_c = h * abs(anharmonicity)
+        else:
+            E_c = self.config.get("E_c")
+            if E_c is None:
+                raise ValueError(f"No anharmonicity data for {qb_path} and no fallback E_c in hardware constants")
+            logging.debug(f"Using global E_c fallback for {qb_path}")
 
-        logging.debug("\nNow optimising y0")
-        optimiser_y0 = lambda cur_y0: logging.debug(f"now trying y: {cur_y0}") or self.total_init_parameter_error({"y0": cur_y0}, "T1")
-        res = minimize_scalar(optimiser_y0, method='brent', options={'maxiter': 100, 'xtol': 0.0001})
-        optimal_y0 = res.x
-        logging.debug(f"optimal y0 was found to be {optimal_y0}")
-        self.config["y0"] = optimal_y0
+        # Step 2: E_J from frequency and E_c
+        E_J = (h * frequency + E_c)**2 / (8 * E_c)
 
-        logging.debug("\nNow optimising y_phi_b")
-        optimiser_y_phi_b = lambda cur_y_phi_b: logging.debug(f"now trying y_phi_b: {cur_y_phi_b}") or self.total_init_parameter_error({"gamma_psi_base": cur_y_phi_b}, "T2")
-        res = minimize_scalar(optimiser_y_phi_b, options={'maxiter': 100, 'xtol': 0.0001})
-        optimal_y_phi_b = res.x
-        logging.debug(f"optimal y_phi_b was found to be {optimal_y_phi_b}")
-        self.config["gamma_psi_base"] = optimal_y_phi_b
-        logging.debug("\nSucessfully optimised both parameters\n")
+        if E_J / E_c < 20:
+            logging.warning(f"E_J/E_c = {E_J/E_c:.1f} for {qb_path} — transmon approximation may be inaccurate (expected >= ~30)")
 
-        optimiser_registry.store_optimisation(self.name, self.__class__, self.config)
+        # Step 3: w_p (plasma frequency)
+        w_p = sqrt(8 * E_J * E_c) / hbar
+
+        # Step 4: R_n (normal-state junction resistance)
+        delta = self.config.get("delta")
+        R_n = pi * hbar * delta / (4 * e**2 * E_J)
+
+        # Step 5: N_e (effective number of junction channels)
+        subgap_transparency = self.config.get("subgap_transparency")
+        g_k = e**2 / h
+        N_e = (1 / subgap_transparency) * 1 / (2 * R_n * g_k)
+
+        # Step 7: T_env (precomputed median)
+        T_env = self.median_T_env
+
+        # Step 8: y0 (gamma_1_0) — closed-form from T1_meas
+        T1_meas = self.json_manager.find_value_with_units("T1", qb_path)
+        ymxc_y0 = self.config.get("ymxc_y0")
+        n_BE_init = self.bose_einstein(w_ge, self.init_T)
+        n_BE_env = self.bose_einstein(w_ge, T_env)
+        n_eff_init = ymxc_y0 * n_BE_init + (1 - ymxc_y0) * n_BE_env
+        y0 = 1 / (T1_meas * (2 * n_eff_init + 1))
+
+        # Step 9: gamma_psi_base — closed-form from T1 and T2
+        T2_meas = self.json_manager.find_value_with_units("T2", qb_path)
+        gamma_psi_base = max(0, 1 / T2_meas - 1 / (2 * T1_meas))
+
+        qp = {
+            "E_c": E_c,
+            "E_J": E_J,
+            "w_p": w_p,
+            "R_n": R_n,
+            "N_e": N_e,
+            "y0": y0,
+            "gamma_psi_base": gamma_psi_base,
+            "T_env": T_env,
+            "w_ge": w_ge,
+        }
+
+        logging.debug(f"Derived params for {qb_path}: E_J/E_c={E_J/E_c:.1f}, R_n={R_n:.0f} Ohm, y0={y0:.1f}, gamma_psi_base={gamma_psi_base:.1f}")
+        return qp
+
+    def initialize_per_qubit_params(self):
+        """Compute median T_env, then derive all per-qubit parameters."""
+        self.median_T_env = self._compute_median_T_env()
+        logging.debug(f"Median T_env = {self.median_T_env}")
+
+        self._qubit_params_cache = {}
+        for qb_path in self.json_manager.get_qubit_paths():
+            self._qubit_params_cache[qb_path] = self._derive_qubit_params(qb_path)
+
+    def get_qubit_params(self, qb_path: str) -> dict:
+        return self._qubit_params_cache[qb_path]
+
+    # ── Physics functions (temperature-dependent) ─────────────────────
+
+    def x_qp(self, T: float):
+        """Equilibrium quasiparticle density"""
+        delta = self.config.get("delta")
+        x_qp = sqrt(2*pi*k*T/delta) * exp(-delta/(k*T))
+        return x_qp
+
+    def bose_einstein(self, w: float, T: float):
+        """Bose-Einstein distribution"""
+        x = (hbar*w) / (k * T)
+        if x > 700:  # Prevent overflow
+            return 0.0
+        return 1.0 / (exp(x) - 1.0)
+
+    def n_eff(self, T: float, qp: dict):
+        """Effective photon number from two-bath model (Paper 1, Eq. 14)"""
+        w_ge = qp["w_ge"]
+        gamma_MXC_ratio = self.config.get("ymxc_y0")
+        T_env = qp["T_env"]
+
+        n_MXC = self.bose_einstein(w_ge, T)
+        n_env = self.bose_einstein(w_ge, T_env)
+
+        n_eff = gamma_MXC_ratio * n_MXC + (1 - gamma_MXC_ratio) * n_env
+        return n_eff
+
+    def gamma_qp(self, T: float, qp: dict):
+        """Quasiparticle-induced relaxation rate (Paper 1, Eq. 26)"""
+        delta = self.config.get("delta")
+        w_ge = qp["w_ge"]
+        w_p = qp["w_p"]
+
+        x_qp = self.x_qp(T)
+
+        # First term: x_qp * sqrt(2Δ/ℏω_ge)
+        term1 = x_qp * sqrt(2*delta/(hbar*w_ge))
+
+        # Second term: 4*exp(-Δ/k_B T) * cosh(ℏω_ge/(2k_B T)) * K_0(ℏω_ge/(2k_B T))
+        arg = hbar*w_ge/(2*k*T)
+        if arg > 700:  # Prevent overflow
+            term2 = 0.0
+        else:
+            term2 = 4*exp(-delta/(k*T)) * cosh(arg) * k0(arg)
+
+        gamma_qp = (w_p**2)/(pi*w_ge) * (term1 + term2)
+        return gamma_qp
+
+    def T1(self, T: float, qp: dict) -> float:
+        """Energy relaxation time (Paper 1, Eq. 27)"""
+        gamma_qp = self.gamma_qp(T, qp)
+        n_eff = self.n_eff(T, qp)
+        y0 = qp["y0"]
+
+        # T1 = 1/[γ_qp(T) + γ_0(2n_eff + 1)]
+        T1 = 1/(gamma_qp + y0*(2*n_eff + 1))
+        return T1
+
+    def gamma_psi_qp(self, T: float, qp: dict):
+        """Quasiparticle-induced dephasing rate (Paper 1, Eq. 29)"""
+        w_p = qp["w_p"]
+        w_ge = qp["w_ge"]
+        N_e = qp["N_e"]
+        delta = self.config.get("delta")
+
+        # x_A_qp = exp(-Δ/k_B T) (Andreev state occupation)
+        if delta/(k*T) > 700:  # Prevent overflow
+            x_A_qp = 0.0
+        else:
+            x_A_qp = exp(-delta/(k*T))
+
+        gamma_psi_qp = 4*pi*(w_p**2/w_ge) * sqrt(x_A_qp/N_e)
+        return gamma_psi_qp
+
+    def T_psi(self, T: float, qp: dict):
+        """Pure Dephasing time"""
+        gamma_psi_qp = self.gamma_psi_qp(T, qp)
+        gamma_psi_base = qp["gamma_psi_base"]
+        T_psi = 1/(gamma_psi_base + gamma_psi_qp)
+        return T_psi
+
+    def T2(self, T: float, qp: dict) -> float:
+        """Total Dephasing time, or T2*"""
+        T1 = self.T1(T, qp)
+        T_psi = self.T_psi(T, qp)
+        T2 = 1/(1/(2*T1) + 1/(T_psi))
+        return T2
+
+    def F_N(self, T: float, N: int, gate_length: float, qubit_params_list: list) -> float:
+        """Gate fidelity with per-qubit decoherence rates (Simbierowicz et al., PRX Quantum 5, 030302, 2024, Eq. 6)
+
+        F_N = 1 - d*t_gate/(2(d+1)) * sum_i(1/T1_i + 1/T_phi_i), where d = 2^N.
+        The N from the homogeneous formula is absorbed by the per-qubit summation.
+        """
+        d = 2 ** N
+        rate_sum = 0
+        for qp in qubit_params_list:
+            T1_i = self.T1(T, qp)
+            T_psi_i = self.T_psi(T, qp)
+            rate_sum += 1/T1_i + 1/T_psi_i
+        return 1 - (d * gate_length) / (2 * (d + 1)) * rate_sum
+
+    # ── Backend building ──────────────────────────────────────────────
+
+    def calculate_qb_config(self, control_parameters: dict, qb_path: str):
+        logging.debug(f"Calculating a qb config now\n")
+        T = get_config_value(control_parameters, "temperature")
+        qp = self.get_qubit_params(qb_path)
+
+        T1 = self.T1(T, qp)
+        logging.debug(f"working_T1: {T1} at temperature {T}")
+        T2 = self.T2(T, qp)
+        logging.debug(f"working_T2: {T2} at temperature {T}")
+
+        qb_config = {"T1": T1, "T2": T2}
+        logging.debug(f"ending qb calculations with the following config: {qb_config}")
+
+        self.config_tracker.add_config({"config": qb_config}, "qb")
+        return qb_config
+
+    def calculate_gate_config(self, control_parameters: dict, gate_path: str):
+        logging.debug(f"Calculating a gate config now\n")
+        gate_param_path = gate_path + "parameters."
+
+        relevant_qubits = self.json_manager.resolve(gate_path + "qubits")
+        N = len(relevant_qubits)
+        T = get_config_value(control_parameters, "temperature")
+        gate_length = self.json_manager.find_value_with_units("gate_length", gate_param_path)
+        logging.debug(f"gate_length: {gate_length}")
+
+        qubit_params_list = [self.get_qubit_params(f"qubits.[{qb}].") for qb in relevant_qubits]
+
+        gate_error = max(0, min(1, 1 - self.F_N(T, N, gate_length, qubit_params_list)))
+        logging.debug(f"gate_error: {gate_error} at temperature {T}")
+
+        gate_config = {"gate_error": gate_error}
+        self.config_tracker.add_config({"config": gate_config}, "gate")
+        return gate_config

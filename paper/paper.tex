@@ -250,79 +250,222 @@ For all further assumptions, reference specific assumption sets on a per case st
 
 \subsubsection{Hardware Parameters}
 
-I make the following modelling assumptions for the IBM processors:
+This section outlines the modelling assumptions when creating noise models from IBM fake backends.
 
-All data mentioned below is IBM calibration data pulled directly from the latest github commit.
+All parameters in this model can be changed. Some are hardcoded beforehand, and some are fit by the aforementioned calibration data at runtime.
 
-We use the following hardware parameters in the temperature dependent model:
-\begin{itemize}
-	\item $\gamma_0$ is fit at runtime
-	      \begin{itemize}
-		      \item It is calculated by minimising the squared error between the estimated and actual T1 values, keeping all other model parameters constant
-		      \item To produce the estimated T1 values, we assume such data is generated at the default operational MXC temperature, which is taken as 0.013K
-		      \item To retain per-qubit accuracy, we calculate and store the multiplicative error of each qubit's T1 value at the operational temperature, and adjust all estimates for T1 values at other temperatures with this multiplicative factor
-		      \item An improvement for future builder classes would be to store a value for $\gamma_0$ on a per qubit basis instead of averaging
-	      \end{itemize}
-	\item $\gamma_{\varphi-\text{base}}$ is fit at runtime
-	      \begin{itemize}
-		      \item It is calculated by minimising the squared error between the estimated and actual T2 values, keeping all other model parameters constant
-		      \item This is calculated after estimating $gamma_0$
-		      \item We assume such data is generated at operational MXC temperature, which is taken as 0.013K
-		      \item As before, to retain per-qubit accuracy we calculate and store the multiplicative error of each qubit's T2 value at the operational temperature and adjust all estimates for T2 values at other temperatures with this multiplicative factor
-		      \item An improvement for future builder classes would be to store a value for $\gamma_{\varphi-\text{base}}$ on a per qubit basis instead of averaging
-	      \end{itemize}
-	\item $\frac{\gamma_{MXC}}{\gamma_0}$ is estimated as $0.9$
-	      \begin{itemize}
-		      \item The maximum value from the experimental dataset reported in Ref.~\cite{lvov2025thermometry} is 0.85.
-		      \item We can assume this is using standard lab equipment, making 0.9 a lower bound for professional IBM architecture
-	      \end{itemize}
-	\item $T_{env}$ is fit at runtime
-	      \begin{itemize}
-		      \item It is calculated by estimating a value for each qubit and taking the median
-		      \item prob\_meas1\_prep0 is extracted for each qubit, and used alongside previously estimated parameters and equations from ~\cite{lvov2025thermometry} to estimate $T_env$, as described in Section~\ref{sec:T_env-estimation}
-	      \end{itemize}
-	\item $\Delta$ (superconducting energy gap) of $50,000$
-	      \begin{itemize}
-		      \item This is the known value for Aluminium, which we can assume the electrodes used in IBM transmon qubits are made of
-	      \end{itemize}
-	\item Subgap Transparency is set at 0.00005
-	\item $R_n$, or normal state resistance, is set at 5000
-	\item $\omega_{ge}$ is extracted from known configuration data for each backend individually for each qubit
-	\item $N_e$, the number of effective channels in the Josephson Junction, is estimated at $1.29\times10^{5}$. We calculate this value using:
-	      \begin{itemize}
-		      \item An estimated normal resistance of the Josephson Junction of $5\text{k}\Omega$
-		      \item Transparency of the junction in the subgap regime of $5\times10^{-5}$
-	      \end{itemize}
-	\item $E_c$, charging energy of the capacitors in the transmon qubits, of $0.95\mu$eV
-	\item $E_j$, josephson energy of the transmon qubits, of $62.1\mu$eV
-\end{itemize}
+\noindent\rule{0.5\textwidth}{0.4pt}
 
-When calculating gate errors, the difference between the known gate error and calculated gate error at the operational temperature is stored and assumed to be
-representative of the non-thermal error, and thus independent of temperature. It is then added to future calculated gate errors
+The following parameters are hardcoded beforehand:
+
+\begin{enumerate}
+	\item $\gamma_\mathrm{MXC}/\gamma_1^0 = 0.9$ (coupling ratio)
+	      \begin{itemize}
+		      \item This is the ratio of how much of the qubit's relaxation couples to the mixing chamber (MXC) versus the residual electromagnetic environment
+		      \item Lvov et al.~\cite{lvov2025thermometry}, Table~III, report experimental values of $0.60$--$0.85$ for custom devices; we assume $0.9$ as representative of IBM's professional superiority to standard lab equipment
+	      \end{itemize}
+
+	\item The default operational cryostat temperature, assumed to be $13mK$
+	      \begin{itemize}
+		      \item All calibration data is assumed to be collected at this temperature
+	      \end{itemize}
+
+	\item $\Delta = 2.88 \times 10^{-23}$~J (180~$\mu$eV) (superconducting energy gap)
+	      \begin{itemize}
+		      \item Note: This is the value for bulk aluminum value; IBM transmon electrodes and junctions use aluminum thin-films that can deviate slightly
+		      \item With that being said, 180~$\mu$eV is standard in the superconducting qubit literature~\cite{catelani2011qp_relaxation}
+	      \end{itemize}
+
+	\item $\zeta = 5 \times 10^{-5}$ (subgap transparency)
+	      \begin{itemize}
+		      \item This characterizes the transparency of quasiparticle tunneling channels in the subgap regime; literature values range from $10^{-3}$ to $10^{-5}$~\cite{catelani2012qp_diffusion}
+		      \item It is treated as a uniform constant across the chip, and thus a manufacturing constant
+	      \end{itemize}
+\end{enumerate}
+
+\noindent\rule{0.5\textwidth}{0.4pt}
+
+The following parameters are derived on a per qubit basis at runtime.
+
+All per-qubit data mentioned below is retrieved directly from official IBM calibration data, pulled directly from the latest github commit.
+
+\begin{enumerate}
+	\item $E_c$ (charging energy)
+	      \begin{itemize}
+		      \item In the transmon regime ($E_J/E_c \gg 1$), the anharmonicity approaches $\alpha \to -E_c/\hbar$~\cite{koch2007transmon}, Eq.~(2.5)
+		      \item Since IBM reports anharmonicity $\alpha/2\pi$ in Hz:
+		            \[
+			            E_c = h \abs \alpha
+		            \]
+		      \item $\alpha$ represents qubit anharmonicity, and is obtained from calibration data
+	      \end{itemize}
+
+	\item $E_J$ (Josephson energy)
+	      \begin{itemize}
+		      \item We calculated it by inverting the transmon transition frequency $\hbar\omega_{ge} \approx \sqrt{8 E_J E_c} - E_c$~\cite{koch2007transmon}, Eq.~(2.5):
+		            \[
+			            E_J = \frac{(\hbar\omega_{ge} + E_c)^2}{8\,E_c}
+		            \]
+		      \item Qubit frequency is obtained from calibration data
+	      \end{itemize}
+
+	\item $\omega_p$ (plasma frequency)
+	      \begin{itemize}
+		      \item Sets the energy scale for quasiparticle-induced transition rates~\cite{catelani2011qp_relaxation}, using the same equation from before from ~\cite{koch2007transmon}:
+		            \[
+			            \omega_p = \frac{\sqrt{8\,E_J\,E_c}}{\hbar}
+		            \]
+	      \end{itemize}
+
+	\item $R_n$ (normal-state junction resistance)
+	      \begin{itemize}
+		      \item From the Ambegaokar--Baratoff relation~\cite{ambegaokar1963tunneling}, inverted using $E_J = \pi\hbar\Delta/(4e^2 R_n)$:
+		            \[
+			            R_n = \frac{\pi\,\hbar\,\Delta}{4\,e^2\,E_J}
+		            \]
+	      \end{itemize}
+
+	\item $N_e$ (effective number of junction channels)
+	      \begin{itemize}
+		      \item Following~\cite{catelani2012qp_diffusion}, Eq.~(15):
+		            \[
+			            N_e = \frac{1}{\zeta} \cdot \frac{g_T}{2\,g_K} = \frac{1}{\zeta} \cdot \frac{1}{2\,R_n\,g_K}
+		            \]
+		      \item where $g_K = e^2/h$ is the conductance quantum
+		      \item $\zeta \sim 10^{-3}$--$10^{-5}$ is the subgap transparency, a global constant set by the fabrication process
+		      \item Since $R_n$ varies per qubit (Step~4), $N_e$ varies per qubit
+	      \end{itemize}
+
+	\item $p_e$ (thermal excited-state population)
+	      \begin{itemize}
+		      \item First the probability of measuring $\ket{1}$ after preparing $\ket{0}$ is extracted for each qubit
+		      \item The residual excited state population, $p_e$, as estimated as equal to this value.
+		      \item This is likely a significant overestimation of $p_e$. Much of the readout error will not be due to excited state population, but simple measurement error.
+		      \item This in turn will likely safely overestimate $T_{env}$.
+	      \end{itemize}
+
+	\item $T_\mathrm{env}$ (effective environment temperature) is estimated at runtime
+	      \begin{itemize}
+		      \item It is estimated per qubit from $p_e$ values (Step~6) and previously derived parameters
+		      \item The median across all qubits is then taken
+		      \item Derived from the two-bath model of~\cite{lvov2025thermometry}, Eq.~(14), in the low-$T_\mathrm{MXC}$ limit, as described in Section~\ref{sec:T_env-estimation}
+	      \end{itemize}
+
+	\item $\gamma_1^0$ (zero-temperature relaxation rate)
+	      \begin{itemize}
+		      \item At the operational temperature $T_\mathrm{op} \approx 13$~mK, quasiparticle contributions are negligible ($\gamma_\mathrm{QP}(T_\mathrm{op}) \approx 0$) and the MXC bath occupation vanishes ($n_\mathrm{MXC} \approx 0$)
+		      \item This permits a closed-form inversion of the two-bath relaxation model~\cite{lvov2025thermometry}, Eqs.~(15) and~(27), as described in Section~\ref{sec:gamma0-derivation}
+	      \end{itemize}
+
+	\item $\gamma_{\varphi,\mathrm{base}}$ (base pure dephasing rate)
+	      \begin{itemize}
+		      \item At $T_\mathrm{op}$, quasiparticle dephasing is negligible ($\gamma_{\varphi,\mathrm{QP}}(T_\mathrm{op}) \approx 0$), so the standard decoherence decomposition~\cite{krantz2019guide} gives:
+		            \[
+			            \gamma_{\varphi,\mathrm{base}} = \frac{1}{T_{2,\mathrm{meas}}} - \frac{1}{2\,T_{1,\mathrm{meas}}}
+		            \]
+		      \item Clamped to $\gamma_{\varphi,\mathrm{base}} \geq 0$; a negative value would indicate $T_2 > 2T_1$, implying negligible pure dephasing
+		      \item Note: IBM reports $T_2$ from Hahn echo measurements. Thus, $\gamma_{\varphi,\mathrm{base}}$ therefore captures only high-frequency dephasing sources. All $T_2$ predictions in this work correspond to echo coherence times
+	      \end{itemize}
+
+\end{enumerate}
+
+With all per-qubit parameters from Steps~1--9, temperature-dependent predictions for $T_1(T)$, $T_2(T)$, and gate fidelity $F_N(T)$ are computed as described in Section~\ref{sec:temperature-extrapolation}.
 
 \subsection{Theory}
-
+\subsubsection{Environment Temperature Estimation}
 \label{sec:T_env-estimation}
-$T_env$ is calculated in the Default Builder using the following pathway:
-\begin{itemize}
-	\item First the probability of measuring $\ket{1}$ after preparing $\ket{0}$ is extracted for each qubit
-	\item The residual excited state population, $p_e$, as estimated as equal to this value.
-	\item The number of effective thermal photons is estimated using from the Bose-Einstein distribution and assumption of normalisation ($p_e + p_g = 1$):
-	      \[
-		      n_{\text{eff}} = \frac{p_e}{1 - 2*p_e}
-	      \]
-	\item Following the two-bath model of Ref.~\cite{lvov2025thermometry}, $n_{\text{eff}}$ is given by [Eq.~(14)]:
-	      \[
-		      n_\text{eff} = \frac{\gamma_\text{MXC}}{\gamma_1^0} n(\omega_{ge}, T_\text{MXC}) + \frac{\gamma_\text{env}}{\gamma_1^0} n(\omega_{ge}, T_\text{env})
-	      \]
-	\item Now, taking $n(\omega_{ge}, T_\text{MXC})$ to be negligible and rearranging for $T_{\text{env}}$ we get:
-	      \[
-		      T_\text{env} = \frac{\hbar\omega_{ge}}{k_B \ln\!\left(1 + \frac{\gamma_\text{env}}{\gamma_1\,n_\text{eff}}\right)}
-	      \]
-	\item We can then use qubit specific values of $\omega_{ge}$, and the $\gamma_1$ term cancels out
-\end{itemize}
 
-Note that this is an upper bound, and thus safely overestimates noise.
+At the operational cryostat temperature, (assumed to be $\approx 13$~mK), the Bose--Einstein occupation of the MXC bath at qubit frequencies ($\sim$5~GHz) is vanishingly small: $n(\omega_{ge}, T_\mathrm{op}) \approx 0$ since $\hbar\omega_{ge}/k_B T_\mathrm{op} \approx 116$. The two-bath effective occupation~\cite{lvov2025thermometry}, Eq.~(14), therefore simplifies to
+\begin{equation}
+	n_\mathrm{eff} \approx \frac{\gamma_\mathrm{env}}{\gamma_1^0}\, n(\omega_{ge}, T_\mathrm{env}),
+\end{equation}
+Note that $\gamma_0^1$ will cancel out, so is not needed.
+
+We can then calculate $n_\mathrm{eff}$ (effective thermal photon occupation) from the standard equation of thermal occupation of a two-level system:
+\begin{equation}
+	n_\mathrm{eff} = \frac{p_e}{1 - 2\,p_e}.
+\end{equation}
+Inverting the Bose--Einstein distribution for $T_\mathrm{env}$:
+\begin{equation}
+	\label{eq:T_env}
+	T_\mathrm{env} = \frac{\hbar\omega_{ge}}{k_B \ln\!\left(1 + \dfrac{\gamma_\mathrm{env}/\gamma_1^0}{n_\mathrm{eff}}\right)}.
+\end{equation}
+Combining the two equations, we get:
+\begin{equation}
+	\label{eq:T_env_combined}
+	T_\mathrm{env} = \frac{\hbar\omega_{ge}}{k_B \ln\!\left(1 + \dfrac{\gamma_\mathrm{env}/\gamma_1^0}{p_e}\,(1 - 2\,p_e)\right)}.
+\end{equation}
+Therefore, $T_\mathrm{env}$ depends only on the global coupling ratio, the per-qubit frequency, and the corrected $p_e$.
+
+Using this equation, we compute $T_\mathrm{env}$ per qubit and take the median. This uses the assumption that the electromagnetic environment temperature is spatially uniform across the chip.
+
+We use $\gamma_\mathrm{MXC}/\gamma_1^0 = 0.9$.
+
+% ------ Section: gamma_1^0 Derivation ------
+\subsubsection{Zero-Temperature Relaxation Rate}
+\label{sec:gamma0-derivation}
+
+At $T_\mathrm{op} \approx 13$~mK, quasiparticle-induced relaxation is exponentially suppressed ($\gamma_\mathrm{QP} \propto e^{-\Delta/k_B T} \approx 0$). The total relaxation rate~\cite{lvov2025thermometry}, Eqs.~(15) and~(27), reduces to
+\begin{equation}
+	\frac{1}{T_{1,\mathrm{meas}}} = \gamma_1^0\,(2\,n_\mathrm{eff} + 1),
+\end{equation}
+where $n_\mathrm{eff}$ is computed from $T_\mathrm{env}$ (Section~\ref{sec:T_env-estimation}). Solving directly:
+\begin{equation}
+	\label{eq:gamma0}
+	\gamma_1^0 = \frac{1}{T_{1,\mathrm{meas}}\,(2\,n_\mathrm{eff} + 1)}.
+\end{equation}
+This closed-form inversion replaces numerical optimization and is exact given the low-temperature approximations.
+
+% ------ Section: Temperature Extrapolation ------
+\subsubsection{Temperature-Dependent Predictions}
+\label{sec:temperature-extrapolation}
+
+With all per-qubit parameters from Steps~1--9, we compute the following temperature-dependent quantities at arbitrary cryostat temperature $T$.
+
+\paragraph{Quasiparticle density.}
+The thermal quasiparticle density follows~\cite{lvov2025thermometry}:
+\begin{equation}
+	\label{eq:xqp}
+	x_\mathrm{QP}(T) = \sqrt{\frac{2\pi k_B T}{\Delta}}\,\exp\!\left(-\frac{\Delta}{k_B T}\right).
+\end{equation}
+
+\paragraph{Quasiparticle relaxation rate.}
+From~\cite{lvov2025thermometry}, Eq.~(26), originally derived in~\cite{catelani2011qp_relaxation}:
+\begin{equation}
+	\label{eq:gamma_qp}
+	\gamma_\mathrm{QP}(T) = \frac{\omega_p^2}{\pi\,\omega_{ge}} \left[ x_\mathrm{QP}\sqrt{\frac{2\Delta}{\hbar\omega_{ge}}} + 4\,e^{-\Delta/k_B T}\cosh\!\left(\frac{\hbar\omega_{ge}}{2k_B T}\right) K_0\!\left(\frac{\hbar\omega_{ge}}{2k_B T}\right) \right],
+\end{equation}
+where $K_0$ is the modified Bessel function of the second kind, and $\omega_p$ is per-qubit (Step~3).
+
+\paragraph{Quasiparticle dephasing rate.}
+From~\cite{lvov2025thermometry}, Eq.~(29), following~\cite{catelani2012qp_diffusion}:
+\begin{equation}
+	\label{eq:gamma_phi_qp}
+	\gamma_{\varphi,\mathrm{QP}}(T) \sim 4\pi\,\frac{\omega_p^2}{\omega_{ge}} \sqrt{\frac{x_\mathrm{QP}^A}{N_e}},
+\end{equation}
+where $x_\mathrm{QP}^A = \exp(-\Delta/k_B T)$ and both $\omega_p$ and $N_e$ are per-qubit. We note that this expression is order-of-magnitude (as indicated by the ``$\sim$'' in the original reference); the numerical prefactor may differ by a factor of a few.
+
+\paragraph{Relaxation time.}
+\begin{equation}
+	\label{eq:T1_T}
+	T_1(T) = \frac{1}{\gamma_\mathrm{QP}(T) + \gamma_1^0\,(2\,n_\mathrm{eff}(T) + 1)},
+\end{equation}
+where $n_\mathrm{eff}(T) = (\gamma_\mathrm{MXC}/\gamma_1^0)\,n(\omega_{ge}, T) + (1 - \gamma_\mathrm{MXC}/\gamma_1^0)\,n(\omega_{ge}, T_\mathrm{env})$ follows the two-bath model~\cite{lvov2025thermometry}, Eq.~(14).
+
+\paragraph{Coherence time.}
+\begin{equation}
+	\label{eq:T2_T}
+	T_2(T) = \frac{1}{\dfrac{1}{2\,T_1(T)} + \gamma_{\varphi,\mathrm{base}} + \gamma_{\varphi,\mathrm{QP}}(T)}.
+\end{equation}
+As noted in Step~9, all $T_2$ predictions correspond to echo coherence times.
+
+\paragraph{Gate fidelity.}
+For an $N$-qubit gate of duration $t_\mathrm{gate}$, the decoherence-limited fidelity is~\cite{simbierowicz2024thermal_noise}, Eq.~(6), derived from~\cite{abad2022gate_fidelity}:
+\begin{equation}
+	\label{eq:F_N}
+	F_N(T) = 1 - \frac{d\,t_\mathrm{gate}}{2(d+1)} \sum_{i=1}^{N} \left(\frac{1}{T_{1,i}(T)} + \frac{1}{T_{\varphi,i}(T)}\right),
+\end{equation}
+where $d = 2^N$ is the Hilbert space dimension, $T_{\varphi,i} = 1/(\gamma_{\varphi,\mathrm{base},i} + \gamma_{\varphi,\mathrm{QP},i}(T))$, and the sum runs over the constituent qubits of the gate. This formula assumes a local noise model acting independently on each qubit. Note that this captures only decoherence-limited infidelity; non-thermal contributions (calibration errors, crosstalk, leakage) are not included, and predictions at the operational temperature will therefore represent a lower bound on gate error.
 
 \bibliography{references.bib}
 \end{document}

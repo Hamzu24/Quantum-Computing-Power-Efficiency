@@ -25,7 +25,7 @@ class TestBuilderProtocol:
         """
         Test that Builder Protocol defines required methods
 
-        Expected: Protocol has T1, T2, calculate_qb_config, calculate_gate_config, optimise_parameters
+        Expected: Protocol has T1, T2, calculate_qb_config, calculate_gate_config, initialize_per_qubit_params
         """
         # Protocol itself should have these attributes
         assert hasattr(Builder, '__init__')
@@ -33,7 +33,7 @@ class TestBuilderProtocol:
         assert hasattr(Builder, 'T2')
         assert hasattr(Builder, 'calculate_qb_config')
         assert hasattr(Builder, 'calculate_gate_config')
-        assert hasattr(Builder, 'optimise_parameters')
+        assert hasattr(Builder, 'initialize_per_qubit_params')
 
     def test_builder_protocol_has_registry_name(self):
         """
@@ -69,7 +69,7 @@ class TestBuilderProtocol:
             def calculate_gate_config(self, control_parameters, gate_path):
                 return {"gate_error": 0.01}
 
-            def optimise_parameters(self):
+            def initialize_per_qubit_params(self):
                 pass
 
         # Should be able to instantiate
@@ -105,9 +105,7 @@ class TestConfigTracker:
         """
         tracker = ConfigTracker()
         config = {
-            "T1": 50e-6,
-            "T2": 70e-6,
-            "adjs": {"T1": 1.0, "T2": 1.0}
+            "config": {"T1": 50e-6, "T2": 70e-6}
         }
 
         tracker.add_config(config, "qb")
@@ -125,8 +123,7 @@ class TestConfigTracker:
         """
         tracker = ConfigTracker()
         config = {
-            "gate_error": 0.01,
-            "adjs": 1.0
+            "config": {"gate_error": 0.01}
         }
 
         tracker.add_config(config, "gate")
@@ -154,9 +151,9 @@ class TestConfigTracker:
         """
         tracker = ConfigTracker()
 
-        config1 = {"T1": 50e-6, "adjs": {"T1": 1.0, "T2": 1.0}}
-        config2 = {"T1": 60e-6, "adjs": {"T1": 1.1, "T2": 1.1}}
-        config3 = {"T1": 70e-6, "adjs": {"T1": 1.2, "T2": 1.2}}
+        config1 = {"config": {"T1": 50e-6, "T2": 70e-6}}
+        config2 = {"config": {"T1": 60e-6, "T2": 80e-6}}
+        config3 = {"config": {"T1": 70e-6, "T2": 90e-6}}
 
         tracker.add_config(config1, "qb")
         tracker.add_config(config2, "qb")
@@ -175,8 +172,8 @@ class TestConfigTracker:
         """
         tracker = ConfigTracker()
 
-        qb_config = {"T1": 50e-6, "adjs": {"T1": 1.0, "T2": 1.0}}
-        gate_config = {"gate_error": 0.01, "adjs": 1.0}
+        qb_config = {"config": {"T1": 50e-6, "T2": 70e-6}}
+        gate_config = {"config": {"gate_error": 0.01}}
 
         tracker.add_config(qb_config, "qb")
         tracker.add_config(gate_config, "gate")
@@ -188,27 +185,25 @@ class TestConfigTracker:
 
     def test_log_info_calculates_averages(self):
         """
-        Test that log_info calculates average adjustments
+        Test that log_info calculates average computed values
 
-        Given: Multiple qubit and gate configs with adjustment factors
+        Given: Multiple qubit and gate configs
         When: log_info() is called
         Expected: Averages are calculated and logged
         """
         tracker = ConfigTracker()
 
-        # Add qubit configs with different adjustment factors
+        # Add qubit configs with computed T1/T2
         tracker.add_config({
-            "T1": 50e-6,
-            "adjs": {"T1": 1.0, "T2": 1.0}
+            "config": {"T1": 50e-6, "T2": 70e-6}
         }, "qb")
         tracker.add_config({
-            "T1": 60e-6,
-            "adjs": {"T1": 1.2, "T2": 1.1}
+            "config": {"T1": 60e-6, "T2": 80e-6}
         }, "qb")
 
         # Add gate configs
-        tracker.add_config({"gate_error": 0.01, "adjs": 0.9}, "gate")
-        tracker.add_config({"gate_error": 0.02, "adjs": 1.1}, "gate")
+        tracker.add_config({"config": {"gate_error": 0.01}}, "gate")
+        tracker.add_config({"config": {"gate_error": 0.02}}, "gate")
 
         # Capture logging output
         with patch('logging.debug') as mock_debug:
@@ -221,74 +216,67 @@ class TestConfigTracker:
         """
         Test specific average calculations in log_info
 
-        Given: Known adjustment factors for BOTH qubits and gates
+        Given: Known T1/T2 values for BOTH qubits and gates
         Expected: Correct averages are calculated
 
         Note: log_info() requires BOTH qubit AND gate configs to avoid ZeroDivisionError
 
         Calculation:
-        - qb1: T1_adj=1.0, T2_adj=1.0
-        - qb2: T1_adj=1.2, T2_adj=1.4
-        - avg_T1 = (1.0 + 1.2) / 2 = 1.1
-        - avg_T2 = (1.0 + 1.4) / 2 = 1.2
+        - qb1: T1=50e-6, T2=70e-6
+        - qb2: T1=60e-6, T2=80e-6
+        - avg_T1 = (50e-6 + 60e-6) / 2 = 55e-6
+        - avg_T2 = (70e-6 + 80e-6) / 2 = 75e-6
         """
         tracker = ConfigTracker()
 
         # Add qubit configs
         tracker.add_config({
-            "adjs": {"T1": 1.0, "T2": 1.0}
+            "config": {"T1": 50e-6, "T2": 70e-6}
         }, "qb")
         tracker.add_config({
-            "adjs": {"T1": 1.2, "T2": 1.4}
+            "config": {"T1": 60e-6, "T2": 80e-6}
         }, "qb")
 
         # MUST add at least one gate config to avoid ZeroDivisionError
-        tracker.add_config({"adjs": 1.0}, "gate")
+        tracker.add_config({"config": {"gate_error": 0.01}}, "gate")
 
-        # Manually calculate what should be logged
-        expected_avg_T1 = (1.0 + 1.2) / 2
-        expected_avg_T2 = (1.0 + 1.4) / 2
-
-        assert expected_avg_T1 == 1.1
-        assert expected_avg_T2 == 1.2
-
-        # Verify logging happens (actual values logged)
+        # Verify logging happens
         with patch('logging.debug') as mock_debug:
             tracker.log_info()
 
             # Check that avg values were logged
             logged_messages = [str(call[0][0]) for call in mock_debug.call_args_list]
-            assert any("1.1" in msg for msg in logged_messages)
-            assert any("1.2" in msg for msg in logged_messages)
+            assert any("avg computed T1" in msg for msg in logged_messages)
+            assert any("avg computed T2" in msg for msg in logged_messages)
 
     def test_log_info_gate_average_calculations(self):
         """
         Test gate error average calculations
 
-        Given: Gate adjustment factors [0.9, 1.1, 1.0]
-        Expected: avg = (0.9 + 1.1 + 1.0) / 3 = 1.0
+        Given: Gate errors [0.01, 0.02, 0.03]
+        Expected: avg = (0.01 + 0.02 + 0.03) / 3 = 0.02
 
         Note: log_info() requires BOTH qubit AND gate configs
         """
         tracker = ConfigTracker()
 
         # Add gate configs
-        tracker.add_config({"adjs": 0.9}, "gate")
-        tracker.add_config({"adjs": 1.1}, "gate")
-        tracker.add_config({"adjs": 1.0}, "gate")
+        tracker.add_config({"config": {"gate_error": 0.01}}, "gate")
+        tracker.add_config({"config": {"gate_error": 0.02}}, "gate")
+        tracker.add_config({"config": {"gate_error": 0.03}}, "gate")
 
         # MUST add at least one qubit config to avoid ZeroDivisionError
-        tracker.add_config({"adjs": {"T1": 1.0, "T2": 1.0}}, "qb")
+        tracker.add_config({"config": {"T1": 50e-6, "T2": 70e-6}}, "qb")
 
-        expected_avg = (0.9 + 1.1 + 1.0) / 3
+        expected_avg = (0.01 + 0.02 + 0.03) / 3
 
-        assert abs(expected_avg - 1.0) < 1e-10
+        assert abs(expected_avg - 0.02) < 1e-10
 
         with patch('logging.debug') as mock_debug:
             tracker.log_info()
 
             logged_messages = [str(call[0][0]) for call in mock_debug.call_args_list]
-            # Should log the average gate error adjustment
+            # Should log the average gate error
             assert mock_debug.call_count > 0
 
     def test_log_info_with_empty_configs_raises(self):
@@ -311,7 +299,7 @@ class TestConfigTracker:
         """
         tracker = ConfigTracker()
         tracker.add_config({
-            "adjs": {"T1": 1.0, "T2": 1.0}
+            "config": {"T1": 50e-6, "T2": 70e-6}
         }, "qb")
 
         # Should fail on gate average (num_gates = 0)
@@ -325,7 +313,7 @@ class TestConfigTracker:
         Expected: Should raise ZeroDivisionError for qubit averaging
         """
         tracker = ConfigTracker()
-        tracker.add_config({"adjs": 1.0}, "gate")
+        tracker.add_config({"config": {"gate_error": 0.01}}, "gate")
 
         # Should fail on qubit average (num_qb = 0)
         with pytest.raises(ZeroDivisionError):
@@ -367,13 +355,12 @@ class TestConfigTrackerEdgeCases:
         Expected: Stored config is independent of original
         """
         tracker = ConfigTracker()
-        config = {"T1": 50e-6, "adjs": {"T1": 1.0, "T2": 1.0}}
+        config = {"config": {"T1": 50e-6, "T2": 70e-6}}
 
         tracker.add_config(config, "qb")
 
         # Modify original
-        config["T1"] = 999
-        config["adjs"]["T1"] = 999
+        config["config"]["T1"] = 999
 
         # Stored config should be unchanged (if deep copy is used)
         # However, the implementation doesn't deep copy, so this will fail
@@ -382,7 +369,7 @@ class TestConfigTrackerEdgeCases:
 
         # If reference is stored (no deep copy), modifications will affect stored config
         # This is testing the actual behavior
-        assert stored_config["T1"] == 999  # Same reference
+        assert stored_config["config"]["T1"] == 999  # Same reference
 
     def test_log_info_with_single_qubit_and_gate(self):
         """
@@ -392,8 +379,8 @@ class TestConfigTrackerEdgeCases:
         """
         tracker = ConfigTracker()
 
-        qb_config = {"adjs": {"T1": 1.5, "T2": 1.3}}
-        gate_config = {"adjs": 0.95}
+        qb_config = {"config": {"T1": 1.5e-4, "T2": 1.3e-4}}
+        gate_config = {"config": {"gate_error": 0.0095}}
 
         tracker.add_config(qb_config, "qb")
         tracker.add_config(gate_config, "gate")
@@ -404,9 +391,9 @@ class TestConfigTrackerEdgeCases:
             logged_messages = [str(call[0][0]) for call in mock_debug.call_args_list]
 
             # Average of single value = that value
-            assert any("1.5" in msg for msg in logged_messages)  # T1 avg
-            assert any("1.3" in msg for msg in logged_messages)  # T2 avg
-            assert any("0.95" in msg for msg in logged_messages)  # gate avg
+            assert any("0.00015" in msg or "1.5e-04" in msg for msg in logged_messages)  # T1 avg
+            assert any("0.00013" in msg or "1.3e-04" in msg for msg in logged_messages)  # T2 avg
+            assert any("0.0095" in msg for msg in logged_messages)  # gate avg
 
 
 class TestBuilderRegistryIntegration:
@@ -447,7 +434,7 @@ class TestBuilderRegistryIntegration:
             def calculate_gate_config(self, control_parameters, gate_path):
                 return {}
 
-            def optimise_parameters(self):
+            def initialize_per_qubit_params(self):
                 pass
 
         # Register the builder

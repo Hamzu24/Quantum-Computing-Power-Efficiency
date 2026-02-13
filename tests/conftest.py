@@ -22,18 +22,16 @@ def reset_registries():
     This fixture automatically runs before every test to ensure test isolation.
     It clears all registry state (submitters, optimisations, control parameters).
     """
-    from _helpers.registry import submitter_registry, optimiser_registry, control_parameter_registry
+    from _helpers.registry import submitter_registry, control_parameter_registry
     from _helpers.builders.base import builder_registry
 
     # Store original state
     original_submitters = submitter_registry._submitters.copy()
-    original_backends = {k: v.copy() for k, v in optimiser_registry.backends.items()}
     original_control_params = control_parameter_registry.control_parameters.copy()
     original_builders = builder_registry.builders.copy()
 
     # Clear registries
     submitter_registry._submitters = {}
-    optimiser_registry.backends = {}
     control_parameter_registry.control_parameters = {}
     builder_registry.builders = {}
 
@@ -41,7 +39,6 @@ def reset_registries():
 
     # Restore original state (though typically tests should not depend on this)
     submitter_registry._submitters = original_submitters
-    optimiser_registry.backends = original_backends
     control_parameter_registry.control_parameters = original_control_params
     builder_registry.builders = original_builders
 

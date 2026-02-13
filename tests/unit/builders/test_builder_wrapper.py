@@ -58,11 +58,11 @@ class TestBuilderWrapperInitialization:
         class MockBuilder:
             registry_name = "DefaultBuilder"
 
-            def __init__(self, name, config, jm):
+            def __init__(self, name, config, jm, init_control_parameters=None):
                 self.name = name
                 self.config = config
 
-            def optimise_parameters(self):
+            def initialize_per_qubit_params(self):
                 pass
 
         builder_registry.register_builder(MockBuilder)
@@ -102,10 +102,10 @@ class TestBuilderWrapperInitialization:
 
         class MockBuilder:
             registry_name = "DefaultBuilder"
-            def __init__(self, name, config, jm):
+            def __init__(self, name, config, jm, init_control_parameters=None):
                 self.name = name
                 self.config = config
-            def optimise_parameters(self):
+            def initialize_per_qubit_params(self):
                 pass
 
         builder_registry.register_builder(MockBuilder)
@@ -115,11 +115,11 @@ class TestBuilderWrapperInitialization:
         assert wrapper.json_manager is not None
         assert wrapper.json_manager.filename == str(props_file)
 
-    def test_init_calls_builder_optimise(self, tmp_path, monkeypatch):
+    def test_init_calls_builder_initialize_per_qubit_params(self, tmp_path, monkeypatch):
         """
-        Test that initialization calls optimise_parameters on builder
+        Test that initialization calls initialize_per_qubit_params on builder
 
-        Expected: Builder's optimise_parameters() method is called
+        Expected: Builder's initialize_per_qubit_params() method is called
         """
         hw_config = tmp_path / "hardware_constants.json"
         backend_dir = tmp_path / "backends"
@@ -140,20 +140,20 @@ class TestBuilderWrapperInitialization:
         monkeypatch.setenv("HARDWARE_CONFIG_PATH", str(hw_config))
         monkeypatch.setenv("BACKEND_CONFIGS_FOLDER", str(backend_dir) + "/")
 
-        optimise_called = []
+        init_called = []
 
         class MockBuilder:
             registry_name = "DefaultBuilder"
-            def __init__(self, name, config, jm):
+            def __init__(self, name, config, jm, init_control_parameters=None):
                 self.config = config
-            def optimise_parameters(self):
-                optimise_called.append(True)
+            def initialize_per_qubit_params(self):
+                init_called.append(True)
 
         builder_registry.register_builder(MockBuilder)
 
         wrapper = BuilderWrapper("perth", {})
 
-        assert len(optimise_called) == 1
+        assert len(init_called) == 1
 
 
 class TestBuilderWrapperFindGroup:
@@ -335,14 +335,14 @@ class TestBuilderWrapperBuildBackend:
 
         class MockBuilderClass:
             registry_name = "DefaultBuilder"
-            def __init__(self, name, config, jm):
+            def __init__(self, name, config, jm, init_control_parameters=None):
                 self.config = config
                 return_value = mock_builder
-            def optimise_parameters(self):
+            def initialize_per_qubit_params(self):
                 pass
 
         # Use a hacky way to return the mock
-        def mock_builder_init(name, config, jm):
+        def mock_builder_init(name, config, jm, init_control_parameters=None):
             return mock_builder
 
         with patch.object(builder_registry, 'get_builder', return_value=mock_builder_init):
@@ -395,7 +395,7 @@ class TestBuilderWrapperBuildBackend:
         mock_builder = Mock()
         mock_builder.calculate_qb_config = Mock(return_value={"T1": 50e-6})
 
-        def mock_builder_init(name, config, jm):
+        def mock_builder_init(name, config, jm, init_control_parameters=None):
             return mock_builder
 
         with patch.object(builder_registry, 'get_builder', return_value=mock_builder_init):
@@ -446,7 +446,7 @@ class TestBuilderWrapperBuildBackend:
             "gate_length": None  # This should be skipped
         })
 
-        def mock_builder_init(name, config, jm):
+        def mock_builder_init(name, config, jm, init_control_parameters=None):
             return mock_builder
 
         with patch.object(builder_registry, 'get_builder', return_value=mock_builder_init):
@@ -503,7 +503,7 @@ class TestBuilderWrapperIntegration:
         mock_builder.calculate_gate_config = Mock(return_value={})
         mock_builder.config = hw_data["modern"]
 
-        def mock_builder_init(name, config, jm):
+        def mock_builder_init(name, config, jm, init_control_parameters=None):
             return mock_builder
 
         with patch.object(builder_registry, 'get_builder', return_value=mock_builder_init):

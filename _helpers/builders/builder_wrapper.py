@@ -2,10 +2,6 @@ import json
 import os
 from _helpers.json_manager import JsonManager
 import logging
-import time
-from scipy.optimize import minimize_scalar
-from copy import deepcopy
-from _helpers.helpers import get_config_value
 from _helpers.constants import HARDWARE_CONFIG_GROUPS
 from _helpers.builders.base import builder_registry
 from _helpers.registry import control_parameter_registry
@@ -25,8 +21,8 @@ class BuilderWrapper:
         logging.info(f"All available builders: {builder_registry.list_builders()}")
         self.builder = builder_registry.get_builder(builder_name)(name, self.config, self.json_manager, init_control_parameters)
 
-        self.builder.optimise_parameters()
-        logging.info(f"Optimised parameters. config: {self.builder.config}")
+        self.builder.initialize_per_qubit_params()
+        logging.info(f"Initialized per-qubit parameters for {self.name}")
     
     def find_group(self):
         group = None

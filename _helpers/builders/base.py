@@ -19,9 +19,9 @@ class Builder(Protocol):
 
     def calculate_gate_config(self, control_parameters: dict, qb_path: str):
         "build a gate configuration from the control parameters and a specific gate dictionary"
-    
-    def optimise_parameters(self):
-        "optimise certain hardware parameters to fit the system"
+
+    def initialize_per_qubit_params(self):
+        "derive per-qubit parameters from calibration data"
 
 class BuilderRegistry:
     def __init__(self):
@@ -57,23 +57,21 @@ class ConfigTracker:
         avg_T2 = 0
         num_qb = 0
         for info in self.qb_config_infos:
-            logging.debug(info["adjs"])
-            avg_T1 += info["adjs"]["T1"]
-            avg_T2 += info["adjs"]["T2"]
+            avg_T1 += info["config"]["T1"]
+            avg_T2 += info["config"]["T2"]
             num_qb += 1
 
         avg_T1 /= num_qb
         avg_T2 /= num_qb
-        logging.debug(f"avg T1 adj: {avg_T1}")
-        logging.debug(f"avg T2 adj: {avg_T2}")
+        logging.debug(f"avg computed T1: {avg_T1}")
+        logging.debug(f"avg computed T2: {avg_T2}")
 
         logging.debug("\n\n")
         avg_ge = 0
         num_gates = 0
         for info in self.gate_config_infos:
-            logging.debug(info["adjs"])
-            avg_ge += info["adjs"]
+            avg_ge += info["config"]["gate_error"]
             num_gates += 1
 
         avg_ge /= num_gates
-        logging.debug(f"avg ge adj: {avg_ge}")
+        logging.debug(f"avg gate error: {avg_ge}")

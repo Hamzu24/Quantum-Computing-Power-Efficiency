@@ -6,7 +6,7 @@
 %Control: page (0) single
 %Control: year (1) truncated
 %Control: production of eprint (0) enabled
-\begin{thebibliography}{1}%
+\begin{thebibliography}{8}%
 \makeatletter
 \providecommand \@ifxundefined [1]{%
  \@ifx{#1\undefined}
@@ -52,4 +52,25 @@
 \bibitem [{\citenamefont {Lvov}\ \emph {et~al.}(2025)\citenamefont {Lvov}, \citenamefont {Lemziakov}, \citenamefont {Ankerhold}, \citenamefont {Peltonen},\ and\ \citenamefont {Pekola}}]{lvov2025thermometry}%
   \BibitemOpen
   \bibfield  {author} {\bibinfo {author} {\bibfnamefont {D.~S.}\ \bibnamefont {Lvov}}, \bibinfo {author} {\bibfnamefont {S.~A.}\ \bibnamefont {Lemziakov}}, \bibinfo {author} {\bibfnamefont {E.}~\bibnamefont {Ankerhold}}, \bibinfo {author} {\bibfnamefont {J.~T.}\ \bibnamefont {Peltonen}}, \ and\ \bibinfo {author} {\bibfnamefont {J.~P.}\ \bibnamefont {Pekola}},\ }\href {\doibase 10.1103/PhysRevApplied.23.054079} {\bibfield  {journal} {\bibinfo  {journal} {Physical Review Applied}\ }\textbf {\bibinfo {volume} {23}},\ \bibinfo {pages} {054079} (\bibinfo {year} {2025})}\BibitemShut {NoStop}%
+\bibitem [{\citenamefont {Catelani}\ \emph {et~al.}(2011{\natexlab{a}})\citenamefont {Catelani}, \citenamefont {Koch}, \citenamefont {Frunzio}, \citenamefont {Schoelkopf}, \citenamefont {Devoret},\ and\ \citenamefont {Glazman}}]{catelani2011qp_relaxation}%
+  \BibitemOpen
+  \bibfield  {author} {\bibinfo {author} {\bibfnamefont {G.}~\bibnamefont {Catelani}}, \bibinfo {author} {\bibfnamefont {J.}~\bibnamefont {Koch}}, \bibinfo {author} {\bibfnamefont {L.}~\bibnamefont {Frunzio}}, \bibinfo {author} {\bibfnamefont {R.~J.}\ \bibnamefont {Schoelkopf}}, \bibinfo {author} {\bibfnamefont {M.~H.}\ \bibnamefont {Devoret}}, \ and\ \bibinfo {author} {\bibfnamefont {L.~I.}\ \bibnamefont {Glazman}},\ }\href {\doibase 10.1103/PhysRevLett.106.077002} {\bibfield  {journal} {\bibinfo  {journal} {Physical Review Letters}\ }\textbf {\bibinfo {volume} {106}},\ \bibinfo {pages} {077002} (\bibinfo {year} {2011}{\natexlab{a}})}\BibitemShut {NoStop}%
+\bibitem [{\citenamefont {Catelani}\ \emph {et~al.}(2011{\natexlab{b}})\citenamefont {Catelani}, \citenamefont {Schoelkopf}, \citenamefont {Devoret},\ and\ \citenamefont {Glazman}}]{catelani2012qp_diffusion}%
+  \BibitemOpen
+  \bibfield  {author} {\bibinfo {author} {\bibfnamefont {G.}~\bibnamefont {Catelani}}, \bibinfo {author} {\bibfnamefont {R.~J.}\ \bibnamefont {Schoelkopf}}, \bibinfo {author} {\bibfnamefont {M.~H.}\ \bibnamefont {Devoret}}, \ and\ \bibinfo {author} {\bibfnamefont {L.~I.}\ \bibnamefont {Glazman}},\ }\href {\doibase 10.1103/PhysRevB.84.064517} {\bibfield  {journal} {\bibinfo  {journal} {Physical Review B}\ }\textbf {\bibinfo {volume} {84}},\ \bibinfo {pages} {064517} (\bibinfo {year} {2011}{\natexlab{b}})}\BibitemShut {NoStop}%
+\bibitem [{\citenamefont {Koch}\ \emph {et~al.}(2007)\citenamefont {Koch}, \citenamefont {Yu}, \citenamefont {Gambetta}, \citenamefont {Houck}, \citenamefont {Schuster}, \citenamefont {Majer}, \citenamefont {Blais}, \citenamefont {Devoret}, \citenamefont {Girvin},\ and\ \citenamefont {Schoelkopf}}]{koch2007transmon}%
+  \BibitemOpen
+  \bibfield  {author} {\bibinfo {author} {\bibfnamefont {J.}~\bibnamefont {Koch}}, \bibinfo {author} {\bibfnamefont {T.~M.}\ \bibnamefont {Yu}}, \bibinfo {author} {\bibfnamefont {J.}~\bibnamefont {Gambetta}}, \bibinfo {author} {\bibfnamefont {A.~A.}\ \bibnamefont {Houck}}, \bibinfo {author} {\bibfnamefont {D.~I.}\ \bibnamefont {Schuster}}, \bibinfo {author} {\bibfnamefont {J.}~\bibnamefont {Majer}}, \bibinfo {author} {\bibfnamefont {A.}~\bibnamefont {Blais}}, \bibinfo {author} {\bibfnamefont {M.~H.}\ \bibnamefont {Devoret}}, \bibinfo {author} {\bibfnamefont {S.~M.}\ \bibnamefont {Girvin}}, \ and\ \bibinfo {author} {\bibfnamefont {R.~J.}\ \bibnamefont {Schoelkopf}},\ }\href {\doibase 10.1103/PhysRevA.76.042319} {\bibfield  {journal} {\bibinfo  {journal} {Physical Review A}\ }\textbf {\bibinfo {volume} {76}},\ \bibinfo {pages} {042319} (\bibinfo {year} {2007})}\BibitemShut {NoStop}%
+\bibitem [{\citenamefont {Ambegaokar}\ and\ \citenamefont {Baratoff}(1963)}]{ambegaokar1963tunneling}%
+  \BibitemOpen
+  \bibfield  {author} {\bibinfo {author} {\bibfnamefont {V.}~\bibnamefont {Ambegaokar}}\ and\ \bibinfo {author} {\bibfnamefont {A.}~\bibnamefont {Baratoff}},\ }\href {\doibase 10.1103/PhysRevLett.10.486} {\bibfield  {journal} {\bibinfo  {journal} {Physical Review Letters}\ }\textbf {\bibinfo {volume} {10}},\ \bibinfo {pages} {486} (\bibinfo {year} {1963})}\BibitemShut {NoStop}%
+\bibitem [{\citenamefont {Krantz}\ \emph {et~al.}(2019)\citenamefont {Krantz}, \citenamefont {Kjaergaard}, \citenamefont {Yan}, \citenamefont {Orlando}, \citenamefont {Gustavsson},\ and\ \citenamefont {Oliver}}]{krantz2019guide}%
+  \BibitemOpen
+  \bibfield  {author} {\bibinfo {author} {\bibfnamefont {P.}~\bibnamefont {Krantz}}, \bibinfo {author} {\bibfnamefont {M.}~\bibnamefont {Kjaergaard}}, \bibinfo {author} {\bibfnamefont {F.}~\bibnamefont {Yan}}, \bibinfo {author} {\bibfnamefont {T.~P.}\ \bibnamefont {Orlando}}, \bibinfo {author} {\bibfnamefont {S.}~\bibnamefont {Gustavsson}}, \ and\ \bibinfo {author} {\bibfnamefont {W.~D.}\ \bibnamefont {Oliver}},\ }\href {\doibase 10.1063/1.5089550} {\bibfield  {journal} {\bibinfo  {journal} {Applied Physics Reviews}\ }\textbf {\bibinfo {volume} {6}},\ \bibinfo {pages} {021318} (\bibinfo {year} {2019})}\BibitemShut {NoStop}%
+\bibitem [{\citenamefont {Simbierowicz}\ \emph {et~al.}(2024)\citenamefont {Simbierowicz}, \citenamefont {Borrelli}, \citenamefont {Monarkha}, \citenamefont {Nuutinen},\ and\ \citenamefont {Lake}}]{simbierowicz2024thermal_noise}%
+  \BibitemOpen
+  \bibfield  {author} {\bibinfo {author} {\bibfnamefont {S.}~\bibnamefont {Simbierowicz}}, \bibinfo {author} {\bibfnamefont {M.}~\bibnamefont {Borrelli}}, \bibinfo {author} {\bibfnamefont {V.}~\bibnamefont {Monarkha}}, \bibinfo {author} {\bibfnamefont {V.}~\bibnamefont {Nuutinen}}, \ and\ \bibinfo {author} {\bibfnamefont {R.~E.}\ \bibnamefont {Lake}},\ }\href {\doibase 10.1103/PRXQuantum.5.030302} {\bibfield  {journal} {\bibinfo  {journal} {Physical Review X Quantum}\ }\textbf {\bibinfo {volume} {5}},\ \bibinfo {pages} {030302} (\bibinfo {year} {2024})}\BibitemShut {NoStop}%
+\bibitem [{\citenamefont {Abad}\ \emph {et~al.}(2022)\citenamefont {Abad}, \citenamefont {Fernandez},\ and\ \citenamefont {Marvian}}]{abad2022gate_fidelity}%
+  \BibitemOpen
+  \bibfield  {author} {\bibinfo {author} {\bibfnamefont {T.}~\bibnamefont {Abad}}, \bibinfo {author} {\bibfnamefont {J.}~\bibnamefont {Fernandez}}, \ and\ \bibinfo {author} {\bibfnamefont {I.}~\bibnamefont {Marvian}},\ }\href {\doibase 10.1103/PhysRevLett.129.150504} {\bibfield  {journal} {\bibinfo  {journal} {Physical Review Letters}\ }\textbf {\bibinfo {volume} {129}},\ \bibinfo {pages} {150504} (\bibinfo {year} {2022})}\BibitemShut {NoStop}%
 \end{thebibliography}%
