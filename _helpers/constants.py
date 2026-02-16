@@ -32,9 +32,9 @@ def resolve_metric_path(path_or_name: str) -> str:
 SIMULATION_METHOD = "density_matrix"
 
 HARDWARE_CONFIG_GROUPS = {
-    "modern": ("default", "sherbrooke"),
-    "intermediate": (),
-    "legacy": ()
+    "modern": ("default", "sherbrooke", "cairo", "hanoi", "auckland", "geneva", "oslo", "perth", "prague", "washington"),
+    "intermediate": ("athens", "belem", "lima", "quito", "manila", "santiago", "bogota", "rome", "casablanca", "jakarta", "lagos", "nairobi", "guadalupe", "toronto", "montreal", "mumbai", "kolkata", "sydney", "paris", "manhattan", "brooklyn"),
+    "legacy": ("almaden", "armonk", "burlington", "essex", "vigo", "ourense", "valencia", "london", "melbourne", "boeblingen", "singapore", "johannesburg", "poughkeepsie", "cambridge", "rochester", "tokyo", "tenerife", "rueschlikon", "yorktown"),
 }
 
 EXISTING_MODELS = {

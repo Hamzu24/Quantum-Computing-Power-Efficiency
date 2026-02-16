@@ -1,7 +1,7 @@
 {
-  "num_qubits": 5,
+  "num_qubits": 4,
   "circuit_optimisation_level": 3,
-  "optimisation_iterations": 12,
+  "optimisation_iterations": 3,
   "max_parallel_circuits": 10,
   "selected_noise_model": "experiment",
   "device_tracking": {
@@ -22,16 +22,16 @@
   "noise_models": {
     "experiment": {
       "type": "fake_backend",
-      "name": "sherbrooke",
+      "name": "jakarta",
       "control_parameters": {
         "temperature": [
           [
-            13,
+            40,
             "mK"
           ],
           [
             13,
-            5,
+            50,
             "mK"
           ]
         ]
@@ -43,5 +43,6 @@
         ]
       }
     }
-  }
+  },
+  "noise_model_name": "sherbrooke"
 }

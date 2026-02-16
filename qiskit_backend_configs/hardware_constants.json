@@ -2,28 +2,19 @@
     "modern": {
         "delta": 2.88e-23,
         "ymxc_y0": 0.9,
-        "subgap_transparency": 0.00005,
+        "subgap_transparency": 5e-5,
         "builder_class": "DefaultBuilder",
-        "E_c": 1.524e-25,
-        "E_J": 9.944e-24,
-        "R_n": 5000
     },
     "intermediate": {
         "delta": 2.88e-23,
-        "ymxc_y0": 0.95,
-        "subgap_transparency": 0.00005,
+        "ymxc_y0": 0.85,
+        "subgap_transparency": 1e-4,
         "builder_class": "DefaultBuilder",
-        "E_c": 1.524e-25,
-        "E_J": 9.944e-24,
-        "R_n": 5000
     },
     "legacy": {
         "delta": 2.88e-23,
-        "ymxc_y0": 0.95,
-        "subgap_transparency": 0.00005,
+        "ymxc_y0": 0.8,
+        "subgap_transparency": 5e-4,
         "builder_class": "DefaultBuilder",
-        "E_c": 1.524e-25,
-        "E_J": 9.944e-24,
-        "R_n": 5000
     }
 }

@@ -56,8 +56,10 @@ def craft_noise_model(config: dict, pauli_mode: bool = False):
     if config_type in noise_model_registry:
         wrapper = NoiseModelWrapper(config)
         if pauli_mode:
-            return wrapper.build_pauli()
-        return wrapper.build()
+            nm, backend = wrapper.build_pauli()
+            return nm, backend, {}
+        nm, backend = wrapper.build()
+        return nm, backend, {}
 
     raise ValueError(f"Unknown noise model type: {config_type}. "
                      f"Available types: fake_backend, {noise_model_registry.list_factories()}")
@@ -71,14 +73,14 @@ def _prepare_fake_backend(config):
 
     matching_class = get_backend_class(config, backend_name)
     create_backend_symlinks(config, matching_class)
-    build_backend(config, backend_name)
+    metadata = build_backend(config, backend_name)
 
     backend = matching_class()
-    return backend, backend_name
+    return backend, backend_name, metadata
 
 
 def nm_from_fake_backend(config):
-    backend, backend_name = _prepare_fake_backend(config)
+    backend, backend_name, metadata = _prepare_fake_backend(config)
 
     # Temperature determines the target excitation of qubits' asymptotic drift.
     # 0 is the default value, where the target is just |0>
@@ -91,15 +93,15 @@ def nm_from_fake_backend(config):
         temperature=temperature
     )
     noise_model.name = backend_name
-    return noise_model, backend
+    return noise_model, backend, metadata
 
-def pauli_nm_from_fake_backend(config) -> Tuple[dict, CustomNoiseModelBackend]:
-    backend, backend_name = _prepare_fake_backend(config)
+def pauli_nm_from_fake_backend(config) -> Tuple[dict, CustomNoiseModelBackend, dict]:
+    backend, backend_name, _metadata = _prepare_fake_backend(config)
 
     qubit_properties = get_qubit_properties(backend_name)
     noise_model = build_pauli_noise_model(qubit_properties)
 
-    return noise_model, backend
+    return noise_model, backend, {}
 
 def get_gate_duration(gate: str, durations: dict[str, float]) -> float:
     if gate in durations:
@@ -255,7 +257,7 @@ def nm_from_fake_backend_no_twirl(config):
     - Single error axis per gate type (real errors vary per qubit pair)
     - Does not model leakage or crosstalk
     """
-    backend, backend_name = _prepare_fake_backend(config)
+    backend, backend_name, metadata = _prepare_fake_backend(config)
     two_qubit_error_model = config.get("two_qubit_error_model", "zz")
 
     logging.info(f"Building noise model without twirling for backend: {backend_name}")
@@ -385,7 +387,7 @@ def nm_from_fake_backend_no_twirl(config):
     noise_model.name = config["name"] + "_no_twirl"
     logging.info(f"Created no-twirl noise model with {n_qubits} qubits")
 
-    return noise_model, backend
+    return noise_model, backend, metadata
 
 
 def fetch_config_files(backend_name, exit_if_unavailable=True):
@@ -446,11 +448,12 @@ def get_backend_class(config, backend_name):
     return matching_class
 
 # This builds the backend using the config files
-def build_backend(config, backend_name):
+def build_backend(config, backend_name) -> dict:
     init_control_parameters = config.get("init_control_parameters")
     builder = BuilderWrapper(backend_name, init_control_parameters)
     control_parameters = get_control_parameters(config)
-    builder.build_backend(control_parameters)
+    metadata = builder.build_backend(control_parameters)
+    return metadata
 
 # GPT function
 def get_commit_sha_for_branch(owner, repo, branch):

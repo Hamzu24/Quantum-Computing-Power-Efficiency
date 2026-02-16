@@ -190,26 +190,6 @@ Here is an overview of the system architecture:
 	\label{fig:dataflow}
 \end{figure}
 
-\subsection{Case Studies}
-
-\subsubsection{Case Study 1: \textbf{Quantum Volume on Legacy Backends}}
-
-\begin{figure}[htbp]
-	\centering
-	\includegraphics[width=\linewidth]{images/experiment-3-grover.png}
-	\caption{Performance on Grover's algorithm using Auckland Fake Backend}
-	\label{fig:myimage1}
-\end{figure}
-
-\begin{figure}[H]
-	\centering
-	\includegraphics[width=\linewidth]{images/experiment-4-grover.png}
-	\caption{Performance on Grover's algorithm using CairoV2 Fake Backend}
-	\label{fig:myimage}
-\end{figure}
-
-These are both V2, Falcon R5 backends released around late 2021. You can see a stable drop in performance with increased qubit counts.
-
 \subsection{Preface of Result Validity}
 
 The validity of these results hinges primarily upon the correctness of the code used to generate them. Thus, we have generated an extensive suite of unit tests to ensure the framework is operating as expected.
@@ -234,6 +214,24 @@ For all further assumptions, reference specific assumption sets on a per case st
 
 \subsection{Case Studies}
 
+\subsubsection{Case Study 1: \textbf{Quantum Volume on Legacy Backends}}
+
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[width=\linewidth]{images/experiment-3-grover.png}
+	\caption{Performance on Grover's algorithm using Auckland Fake Backend}
+	\label{fig:myimage1}
+\end{figure}
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=\linewidth]{images/experiment-4-grover.png}
+	\caption{Performance on Grover's algorithm using CairoV2 Fake Backend}
+	\label{fig:myimage}
+\end{figure}
+
+These are both V2, Falcon R5 backends released around late 2021. You can see a stable drop in performance with increased qubit counts.
+
 \subsubsection{Case Study 1: \textbf{Quantum Volume, Simple Arrhenius Noise Model}}
 
 %Let me go through a brief overview of how results are generated:
@@ -252,7 +250,11 @@ For all further assumptions, reference specific assumption sets on a per case st
 
 This section outlines the modelling assumptions when creating noise models from IBM fake backends.
 
-All parameters in this model can be changed. Some are hardcoded beforehand, and some are fit by the aforementioned calibration data at runtime.
+We implicitly use all the assumptions of the two bath model outlined in ~\cite{lvov2025thermometry}, Section~A. In summary, we assume that the qubits only thermalise with two distinct temperature environments: the mixing chamber (MXC) and the environment.
+
+All parameters in this model can be changed. In this paper, we choose to only vary temperature as the independent parameter of study. The rest of the parameters are either hardcoded beforehand or fit to calibration data at runtime.
+
+To ensure the hardcoded parameters are still representative of the specific fake backend that we are modelling, for each parameter we choose one of three values, decided by the age of the backend. We characterise each backend as either modern, intermediate or legacy.
 
 \noindent\rule{0.5\textwidth}{0.4pt}
 
@@ -290,6 +292,7 @@ The following parameters are derived on a per qubit basis at runtime.
 All per-qubit data mentioned below is retrieved directly from official IBM calibration data, pulled directly from the latest github commit.
 
 \begin{enumerate}
+	\setcounter{enumi}{4}
 	\item $E_c$ (charging energy)
 	      \begin{itemize}
 		      \item In the transmon regime ($E_J/E_c \gg 1$), the anharmonicity approaches $\alpha \to -E_c/\hbar$~\cite{koch2007transmon}, Eq.~(2.5)
@@ -369,13 +372,30 @@ All per-qubit data mentioned below is retrieved directly from official IBM calib
 
 \end{enumerate}
 
-With all per-qubit parameters from Steps~1--9, temperature-dependent predictions for $T_1(T)$, $T_2(T)$, and gate fidelity $F_N(T)$ are computed as described in Section~\ref{sec:temperature-extrapolation}.
+From these parameters, temperature-dependent predictions for $T_1(T)$, $T_2(T)$ are computed as described in Section~\ref{sec:temperature-extrapolation}.
+
+gate fidelity $F_N(T)$
+
+\noindent\rule{0.5\textwidth}{0.4pt}
+
+The following parameter is derived on a per gate basis at runtime:
+
+\begin{enumerate}
+	\setcounter{enumi}{13}
+	\item $\epsilon_\mathrm{off}$ (gate error offset)
+	      \begin{itemize}
+		      \item First, gate infidelity at the default operational temperature is estimated using Eq.~\eqref{eq:F_N}, taking into account per qubit parameters
+		      \item The linear difference between this estimated infidelity and the actual infidelity is stored and added as an offset
+		      \item The physical interpretation of this is that this is the temperature-independent and thus temperature-stable component of gate error
+		      \item Gates without a calibrated gate error (e.g., reset gates) are assigned decoherence-only error
+	      \end{itemize}
+\end{enumerate}
 
 \subsection{Theory}
 \subsubsection{Environment Temperature Estimation}
 \label{sec:T_env-estimation}
 
-At the operational cryostat temperature, (assumed to be $\approx 13$~mK), the Bose--Einstein occupation of the MXC bath at qubit frequencies ($\sim$5~GHz) is vanishingly small: $n(\omega_{ge}, T_\mathrm{op}) \approx 0$ since $\hbar\omega_{ge}/k_B T_\mathrm{op} \approx 116$. The two-bath effective occupation~\cite{lvov2025thermometry}, Eq.~(14), therefore simplifies to
+At the default operational cryostat temperature, the Bose--Einstein occupation of the MXC bath at qubit frequencies is vanishingly small: $n(\omega_{ge}, T_\mathrm{op}) \approx 0$ at standard qubit frequencies. The two-bath effective occupation~\cite{lvov2025thermometry}, Eq.~(14), therefore simplifies to
 \begin{equation}
 	n_\mathrm{eff} \approx \frac{\gamma_\mathrm{env}}{\gamma_1^0}\, n(\omega_{ge}, T_\mathrm{env}),
 \end{equation}
@@ -465,7 +485,20 @@ For an $N$-qubit gate of duration $t_\mathrm{gate}$, the decoherence-limited fid
 	\label{eq:F_N}
 	F_N(T) = 1 - \frac{d\,t_\mathrm{gate}}{2(d+1)} \sum_{i=1}^{N} \left(\frac{1}{T_{1,i}(T)} + \frac{1}{T_{\varphi,i}(T)}\right),
 \end{equation}
-where $d = 2^N$ is the Hilbert space dimension, $T_{\varphi,i} = 1/(\gamma_{\varphi,\mathrm{base},i} + \gamma_{\varphi,\mathrm{QP},i}(T))$, and the sum runs over the constituent qubits of the gate. This formula assumes a local noise model acting independently on each qubit. Note that this captures only decoherence-limited infidelity; non-thermal contributions (calibration errors, crosstalk, leakage) are not included, and predictions at the operational temperature will therefore represent a lower bound on gate error.
+where $d = 2^N$ is the Hilbert space dimension, $T_{\varphi,i} = 1/(\gamma_{\varphi,\mathrm{base},i} + \gamma_{\varphi,\mathrm{QP},i}(T))$, and the sum runs over the constituent qubits of the gate. This formula assumes a local noise model acting independently on each qubit. Equation~\eqref{eq:F_N} captures only decoherence-limited infidelity.
+
+Temperature-independent coherent error sources are accounted for in the $\epsilon_\mathrm{off}$, a linear factor calculated using IBM calibration data.
+
+\begin{equation}
+	\label{eq:coherent_floor}
+	\epsilon_\mathrm{coh} = \epsilon_\mathrm{cal} - \epsilon_\mathrm{dec}(T_\mathrm{op}),
+\end{equation}
+where $\epsilon_\mathrm{cal}$ is the calibrated gate error from the backend properties. The total predicted gate error at temperature $T$ is then
+\begin{equation}
+	\label{eq:gate_error_total}
+	\epsilon_\mathrm{gate}(T) = \min\!\left(1,\; \epsilon_\mathrm{dec}(T) + \epsilon_\mathrm{coh}\right).
+\end{equation}
+This additive decomposition of infidelities is a linear approximation; the exact result would require composing quantum channels. However, the approximation is accurate in the small-error regime ($\epsilon \sim 10^{-3}$--$10^{-2}$) where the product terms $\epsilon_\mathrm{dec}\,\epsilon_\mathrm{coh}$ are negligible. By construction, the predicted gate error recovers the calibrated value at $T_\mathrm{op}$.
 
 \bibliography{references.bib}
 \end{document}

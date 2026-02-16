@@ -14,11 +14,16 @@ from _helpers.registry import submitter_registry
 
 def run_metric(metric_path=DEFAULT_PATH, calculate_consumption=False):
     runpy.run_path(metric_path, run_name="__main__")
-    
+
     performance = float(os.environ.get('PERF_VALUE'))
     print(f"Performance value: {performance}")
 
     submitter = submitter_registry.get_submitter("noisy_sim")
+
+    nm_metadata = {}
+    if submitter is not None and hasattr(submitter, 'get_noise_model_metadata'):
+        nm_metadata = submitter.get_noise_model_metadata()
+
     if calculate_consumption:
         total_consumption, staggered_consumptions = submitter.get_power_consumption()
 
@@ -30,10 +35,10 @@ def run_metric(metric_path=DEFAULT_PATH, calculate_consumption=False):
         for i, (cons, num_qb) in enumerate(zip(staggered_consumptions, num_qubits_list)):
             print(f"{num_qb} qubit power consumption: {sum(cons.values())}")
             consumption_dict["staggered_consumptions"].append(total_consumption)
-    
-        return {"performance": performance, "power_consumption": consumption_dict}
+
+        return {"performance": performance, "power_consumption": consumption_dict, "nm_metadata": nm_metadata}
     else:
-        return {"performance": performance}
+        return {"performance": performance, "nm_metadata": nm_metadata}
 
 if __name__ == "__main__":
     os.environ["CONFIG_PATH"] = "configs.json"

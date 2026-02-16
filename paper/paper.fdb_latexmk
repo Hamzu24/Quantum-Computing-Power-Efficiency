@@ -1,14 +1,14 @@
 # Fdb version 4
-["bibtex paper"] 1770942408.2443 "paper.aux" "paper.bbl" "paper" 1770942500.66175 0
-  "./paperNotes.bib" 1770942499.79707 103 48ad29797468f16e2853d8797278d7af ""
+["bibtex paper"] 1771004808.33599 "paper.aux" "paper.bbl" "paper" 1771005441.14444 0
+  "./paperNotes.bib" 1771005440.75673 103 48ad29797468f16e2853d8797278d7af ""
   "./references.bib" 1770933958.84086 3327 83051aaa3456ad9d59947f087cad2394 ""
   "/usr/share/texlive/texmf-dist/bibtex/bst/revtex4-1/apsrev4-1.bst" 1602107945 71515 e333383ed72bf24aa6de7e8cabb55f84 ""
-  "paper.aux" 1770942499.79507 6544 55836a652527e5ab6f95186ab8bbbe8d "pdflatex"
+  "paper.aux" 1771005440.75573 6581 316750a37e235d81350b48dd946031c8 "pdflatex"
   (generated)
   "paper.bbl"
   "paper.blg"
   (rewritten before read)
-["pdflatex"] 1770942497.34989 "paper.tex" "paper.pdf" "paper" 1770942500.66232 0
+["pdflatex"] 1771005439.12661 "paper.tex" "paper.pdf" "paper" 1771005441.1447 0
   "/etc/texmf/web2c/texmf.cnf" 1760473365.98732 475 c0e671620eb5563b2130f56340a5fde8 ""
   "/home/hamza/.texlive2023/texmf-var/web2c/pdftex/pdflatex.fmt" 1754928385 6800787 65d82984fbed2d0031b990118f10b2e0 ""
   "/usr/share/texlive/texmf-dist/fonts/map/fontname/texfonts.map" 1577235249 3524 cb3e574dea2d1052e39280babc910dc8 ""
@@ -228,10 +228,10 @@
   "/var/lib/texmf/fonts/map/pdftex/updmap/pdftex.map" 1760473378.81531 5472669 54eaf61a88b6b7896ebd0dac973cb29c ""
   "images/experiment-3-grover.png" 1769063895.77244 124998 9a5d2cd70f1c7adf48c69f12fcbb006e ""
   "images/experiment-4-grover.png" 1769063852.68599 108070 cfa18cb6588d7c1a44786d613997893e ""
-  "paper.aux" 1770942499.79507 6544 55836a652527e5ab6f95186ab8bbbe8d "pdflatex"
-  "paper.bbl" 1770942408.44128 8545 390747eb2ad0952f51218ae461473b6c "bibtex paper"
-  "paper.out" 1770942499.79707 2847 2e20a0a2ba3743c2cd04a36b5fd28ac9 "pdflatex"
-  "paper.tex" 1770942495.56704 22222 241adfd0b48c4d8968105253860d9345 ""
+  "paper.aux" 1771005440.75573 6581 316750a37e235d81350b48dd946031c8 "pdflatex"
+  "paper.bbl" 1771004808.43149 8545 390747eb2ad0952f51218ae461473b6c "bibtex paper"
+  "paper.out" 1771005440.75673 2727 3977a3d0298c38cfa8731186816dd441 "pdflatex"
+  "paper.tex" 1771005439.68072 24383 d025ba997d81bd94b8ce1014f6b72945 ""
   (generated)
   "paper.aux"
   "paper.log"

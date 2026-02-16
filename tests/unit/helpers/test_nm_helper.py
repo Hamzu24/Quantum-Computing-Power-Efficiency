@@ -34,8 +34,6 @@ from _helpers.nm_helper import (
     write_needed_files,
     get_props_filename,
     reset_props_file,
-    custom_noise_model,
-    random_noise_model
 )
 
 
@@ -64,64 +62,47 @@ class TestCraftNoiseModel:
         """
         mock_nm = Mock()
         mock_backend = Mock()
-        mock_nm_from_fake.return_value = (mock_nm, mock_backend)
+        mock_metadata = {"T1_values": [50e-6], "T2_values": [70e-6]}
+        mock_nm_from_fake.return_value = (mock_nm, mock_backend, mock_metadata)
 
         config = {"type": "fake_backend", "name": "tokyo"}
         result = craft_noise_model(config)
 
         mock_nm_from_fake.assert_called_once_with(config)
-        assert result == (mock_nm, mock_backend)
+        assert result == (mock_nm, mock_backend, mock_metadata)
 
-    @patch('_helpers.nm_helper.custom_noise_model')
-    @patch('_helpers.nm_helper.extract_from_json')
-    def test_routes_to_simple_nm(self, mock_extract, mock_custom_nm):
+    @patch('_helpers.nm_helper.NoiseModelWrapper')
+    def test_routes_to_registry_nm(self, mock_wrapper_class):
         """
-        Test craft_noise_model routes to custom_noise_model for simple_nm
+        Test craft_noise_model routes to NoiseModelWrapper for registry types
 
-        Given: config with type="simple_nm"
-        Expected: custom_noise_model is called with extracted parameters
+        Given: config with a registry-registered type (e.g. "simple_nm")
+        Expected: NoiseModelWrapper.build() is called and returns 3-tuple with empty metadata
         """
-        mock_extract.return_value = (4, 50e3, 70e3, {})
         mock_nm = Mock()
-        mock_custom_nm.return_value = mock_nm
+        mock_backend = Mock()
+        mock_wrapper = Mock()
+        mock_wrapper.build.return_value = (mock_nm, mock_backend)
+        mock_wrapper_class.return_value = mock_wrapper
 
         config = {"type": "simple_nm", "num_qubits": 4}
-        result = craft_noise_model(config)
 
-        mock_custom_nm.assert_called_once()
-        assert result == (mock_nm, None)
+        with patch('_helpers.nm_helper.noise_model_registry.__contains__', return_value=True):
+            result = craft_noise_model(config)
 
-    @patch('_helpers.nm_helper.random_noise_model')
-    @patch('_helpers.nm_helper.extract_from_json')
-    def test_routes_to_random_simple_nm(self, mock_extract, mock_random_nm):
+        assert result == (mock_nm, mock_backend, {})
+
+    def test_unsupported_type_raises(self):
         """
-        Test craft_noise_model routes to random_noise_model
-
-        Given: config with type="random_simple_nm"
-        Expected: random_noise_model is called with extracted parameters
-        """
-        mock_extract.return_value = (4, 42)
-        mock_nm = Mock()
-        mock_random_nm.return_value = mock_nm
-
-        config = {"type": "random_simple_nm", "num_qubits": 4, "seed": 42}
-        result = craft_noise_model(config)
-
-        mock_random_nm.assert_called_once_with(4, 42)
-        assert result == (mock_nm, None)
-
-    def test_unsupported_type_returns_none(self):
-        """
-        Test craft_noise_model with unsupported type returns None
+        Test craft_noise_model with unsupported type raises ValueError
 
         Given: config with type="unsupported_type"
-        Expected: Returns None
+        Expected: Raises ValueError
         """
         config = {"type": "unsupported_type"}
 
-        result = craft_noise_model(config)
-
-        assert result is None
+        with pytest.raises(ValueError, match="Unknown noise model type"):
+            craft_noise_model(config)
 
 
 class TestConfigExists:
@@ -528,7 +509,7 @@ class TestBuildBackend:
         Test build_backend creates BuilderWrapper and calls build_backend
 
         Given: Config with init_control_parameters
-        Expected: BuilderWrapper is instantiated and build_backend is called
+        Expected: BuilderWrapper is instantiated, build_backend is called, metadata returned
         """
         config = {
             "name": "tokyo",
@@ -537,13 +518,16 @@ class TestBuildBackend:
         mock_control_params = {"temperature": [40, "mK"]}
         mock_get_control.return_value = mock_control_params
 
+        mock_metadata = {"T1_values": [50e-6], "T2_values": [70e-6]}
         mock_builder = Mock()
+        mock_builder.build_backend.return_value = mock_metadata
         mock_wrapper_class.return_value = mock_builder
 
-        build_backend(config, "tokyo")
+        result = build_backend(config, "tokyo")
 
         mock_wrapper_class.assert_called_once_with("tokyo", {"temperature": [40, "mK"]})
         mock_builder.build_backend.assert_called_once_with(mock_control_params)
+        assert result == mock_metadata
 
 
 class TestCreateBackendSymlinks:
@@ -608,82 +592,6 @@ class TestCreateBackendSymlinks:
         # Original file should not have symlink
         assert (target_dir / "props_tokyo.json").exists()
         assert not (target_dir / "props_tokyo_original.json").exists()
-
-
-class TestCustomNoiseModel:
-    """Test custom_noise_model function"""
-
-    def test_creates_noise_model_with_default_params(self):
-        """
-        Test custom_noise_model creates NoiseModel with defaults
-
-        Expected: Returns NoiseModel instance with default parameters
-        """
-        noise_model = custom_noise_model()
-
-        assert noise_model is not None
-        # Should have basis gates
-        assert hasattr(noise_model, 'basis_gates')
-
-    def test_creates_noise_model_with_custom_params(self):
-        """
-        Test custom_noise_model with custom T1, T2, num_qubits
-
-        Given: Custom relaxation times and qubit count
-        Expected: Returns NoiseModel with specified parameters
-        """
-        noise_model = custom_noise_model(
-            num_qubits=6,
-            T1s=100e3,
-            T2s=150e3
-        )
-
-        assert noise_model is not None
-
-    def test_accepts_instruction_times_dict(self):
-        """
-        Test custom_noise_model accepts instruction_times parameter
-
-        Given: Custom instruction_times dict
-        Expected: NoiseModel created without error
-        """
-        instruction_times = {"cx": 200, "rz": 50, "sx": 50}
-
-        noise_model = custom_noise_model(instruction_times=instruction_times)
-
-        assert noise_model is not None
-
-
-class TestRandomNoiseModel:
-    """Test random_noise_model function"""
-
-    def test_creates_random_noise_model(self):
-        """
-        Test random_noise_model creates NoiseModel
-
-        Expected: Returns NoiseModel instance
-        """
-        noise_model = random_noise_model(num_qubits=4, seed=42)
-
-        assert noise_model is not None
-        assert hasattr(noise_model, 'basis_gates')
-
-    def test_different_seeds_produce_different_models(self):
-        """
-        Test random_noise_model with different seeds produces different results
-
-        Given: Two different seeds
-        Expected: Different noise models (at least different basis gates or errors)
-
-        Note: This tests the randomness is actually being used
-        """
-        nm1 = random_noise_model(num_qubits=4, seed=0)
-        nm2 = random_noise_model(num_qubits=4, seed=999)
-
-        assert nm1 is not None
-        assert nm2 is not None
-        # They should be different objects
-        assert nm1 is not nm2
 
 
 class TestFetchConfigFiles:
@@ -796,7 +704,7 @@ class TestNmFromFakeBackend:
         """
         Test nm_from_fake_backend full workflow
 
-        Expected: All helper functions called in correct order
+        Expected: All helper functions called in correct order, returns 3-tuple with metadata
         """
         mock_config_exists.return_value = True
         mock_backend_class = Mock()
@@ -804,12 +712,15 @@ class TestNmFromFakeBackend:
         mock_backend_class.return_value = mock_backend_instance
         mock_get_class.return_value = mock_backend_class
 
+        mock_metadata = {"T1_values": [50e-6], "T2_values": [70e-6]}
+        mock_build.return_value = mock_metadata
+
         mock_noise_model = Mock()
         mock_nm_class.from_backend.return_value = mock_noise_model
 
         config = {"name": "tokyo"}
 
-        noise_model, backend = nm_from_fake_backend(config)
+        noise_model, backend, metadata = nm_from_fake_backend(config)
 
         # Verify function call order
         mock_config_exists.assert_called_once_with("tokyo")
@@ -820,6 +731,7 @@ class TestNmFromFakeBackend:
 
         assert noise_model is mock_noise_model
         assert backend is mock_backend_instance
+        assert metadata == mock_metadata
 
 
 if __name__ == "__main__":

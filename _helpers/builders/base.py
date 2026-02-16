@@ -21,7 +21,10 @@ class Builder(Protocol):
         "build a gate configuration from the control parameters and a specific gate dictionary"
 
     def initialize_per_qubit_params(self):
-        "derive per-qubit parameters from calibration data"
+        "OPTIONAL: derive per-qubit parameters from calibration data"
+
+    def initialize_per_gate_params(self):
+        "OPTIONAL: derive per-gate parameters from calibration data"
 
 class BuilderRegistry:
     def __init__(self):
@@ -52,6 +55,21 @@ class ConfigTracker:
         else:
             raise ValueError(f"Unable to add config to the tracker: unknown type {type}")
     
+    def get_T1_T2_values(self) -> dict:
+        if not self.qb_config_infos:
+            return {}
+        return {
+            "T1_values": [info["config"]["T1"] for info in self.qb_config_infos],
+            "T2_values": [info["config"]["T2"] for info in self.qb_config_infos],
+        }
+
+    def get_gate_error_values(self) -> dict:
+        if not self.gate_config_infos:
+            return {}
+        return {
+            "gate_error_values": [info["config"]["gate_error"] for info in self.gate_config_infos],
+        }
+
     def log_info(self):
         avg_T1 = 0
         avg_T2 = 0

@@ -173,3 +173,5 @@ logs/
 builds/
 CLAUDE.md
 images/
+experiment_results/
+experiment_results-old/

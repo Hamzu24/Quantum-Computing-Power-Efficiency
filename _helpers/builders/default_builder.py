@@ -20,6 +20,7 @@ class DefaultBuilder:
         self.json_manager = jm
         self.config_tracker = ConfigTracker()
         self._qubit_params_cache = {}
+        self._gate_params_cache = {}
 
     def is_valid(self):
         required_params = ["delta", "ymxc_y0", "subgap_transparency"]
@@ -64,7 +65,7 @@ class DefaultBuilder:
         frequency = self.json_manager.find_value_with_units("frequency", qb_path)
         w_ge = 2 * pi * frequency
 
-        # Step 1: E_c from anharmonicity (fallback to global config)
+        # Step 1: E_c from anharmonicity
         anharmonicity = self.json_manager.find_value_with_units("anharmonicity", qb_path)
         if anharmonicity is not None:
             E_c = h * abs(anharmonicity)
@@ -78,24 +79,24 @@ class DefaultBuilder:
         E_J = (h * frequency + E_c)**2 / (8 * E_c)
 
         if E_J / E_c < 20:
-            logging.warning(f"E_J/E_c = {E_J/E_c:.1f} for {qb_path} — transmon approximation may be inaccurate (expected >= ~30)")
+            logging.warning(f"E_J/E_c = {E_J/E_c:.1f} for {qb_path} — transmon approximation may be inaccurate (expected >= 30)")
 
-        # Step 3: w_p (plasma frequency)
+        # Step 3: w_p
         w_p = sqrt(8 * E_J * E_c) / hbar
 
-        # Step 4: R_n (normal-state junction resistance)
+        # Step 4: R_n
         delta = self.config.get("delta")
         R_n = pi * hbar * delta / (4 * e**2 * E_J)
 
-        # Step 5: N_e (effective number of junction channels)
+        # Step 5: N_e
         subgap_transparency = self.config.get("subgap_transparency")
         g_k = e**2 / h
         N_e = (1 / subgap_transparency) * 1 / (2 * R_n * g_k)
 
-        # Step 7: T_env (precomputed median)
+        # Step 7: T_env
         T_env = self.median_T_env
 
-        # Step 8: y0 (gamma_1_0) — closed-form from T1_meas
+        # Step 8: y0 (base relaxation rate)
         T1_meas = self.json_manager.find_value_with_units("T1", qb_path)
         ymxc_y0 = self.config.get("ymxc_y0")
         n_BE_init = self.bose_einstein(w_ge, self.init_T)
@@ -103,7 +104,7 @@ class DefaultBuilder:
         n_eff_init = ymxc_y0 * n_BE_init + (1 - ymxc_y0) * n_BE_env
         y0 = 1 / (T1_meas * (2 * n_eff_init + 1))
 
-        # Step 9: gamma_psi_base — closed-form from T1 and T2
+        # Step 9: gamma_psi_base (base dephasing rate)
         T2_meas = self.json_manager.find_value_with_units("T2", qb_path)
         gamma_psi_base = max(0, 1 / T2_meas - 1 / (2 * T1_meas))
 
@@ -133,6 +134,39 @@ class DefaultBuilder:
 
     def get_qubit_params(self, qb_path: str) -> dict:
         return self._qubit_params_cache[qb_path]
+
+    # ── Per-gate initialization ───────────────────────────────────────
+
+    def initialize_per_gate_params(self):
+        """Back-solve a coherent error floor per gate from calibration data.
+
+        For each gate, the calibrated gate_error includes both decoherence and
+        coherent (control miscalibration, crosstalk) contributions.  We compute
+        the decoherence-only infidelity at init_T and attribute the remainder to
+        a temperature-independent coherent floor:
+
+            coherent_infidelity = calibrated_error - decoherence_infidelity(init_T)
+        """
+        self._gate_params_cache = {}
+        for gate_path in self.json_manager.get_gate_paths():
+            gate_param_path = gate_path + "parameters."
+
+            calibrated_error = self.json_manager.find_value_with_units("gate_error", gate_param_path)
+            if calibrated_error is None:
+                continue
+
+            gate_length = self.json_manager.find_value_with_units("gate_length", gate_param_path)
+            relevant_qubits = self.json_manager.resolve(gate_path + "qubits")
+            N = len(relevant_qubits)
+            qubit_params_list = [self.get_qubit_params(f"qubits.[{qb}].") for qb in relevant_qubits]
+
+            decoherence_at_init = max(0, 1 - self.F_N(self.init_T, N, gate_length, qubit_params_list))
+            coherent_infidelity = calibrated_error - decoherence_at_init
+
+            self._gate_params_cache[gate_path] = {"coherent_infidelity": coherent_infidelity}
+            logging.debug(f"Gate {gate_path}: calibrated={calibrated_error:.6f}, "
+                          f"decoherence@init={decoherence_at_init:.6f}, "
+                          f"coherent_floor={coherent_infidelity:.6f}")
 
     # ── Physics functions (temperature-dependent) ─────────────────────
 
@@ -258,6 +292,12 @@ class DefaultBuilder:
         logging.debug(f"Calculating a gate config now\n")
         gate_param_path = gate_path + "parameters."
 
+        cached = self._gate_params_cache.get(gate_path)
+        if cached is None: # This means there are no errors
+            gate_config = {"gate_error": 0}
+            self.config_tracker.add_config({"config": gate_config}, "gate")
+            return gate_config
+
         relevant_qubits = self.json_manager.resolve(gate_path + "qubits")
         N = len(relevant_qubits)
         T = get_config_value(control_parameters, "temperature")
@@ -266,8 +306,10 @@ class DefaultBuilder:
 
         qubit_params_list = [self.get_qubit_params(f"qubits.[{qb}].") for qb in relevant_qubits]
 
-        gate_error = max(0, min(1, 1 - self.F_N(T, N, gate_length, qubit_params_list)))
-        logging.debug(f"gate_error: {gate_error} at temperature {T}")
+        decoherence_error = max(0, 1 - self.F_N(T, N, gate_length, qubit_params_list))
+        gate_error = min(1, decoherence_error + cached["coherent_infidelity"])
+
+        logging.debug(f"gate_error: {gate_error} (decoherence={decoherence_error:.6f}) at temperature {T}")
 
         gate_config = {"gate_error": gate_error}
         self.config_tracker.add_config({"config": gate_config}, "gate")

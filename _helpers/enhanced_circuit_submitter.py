@@ -72,8 +72,13 @@ class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
                 basis_gates = get_basis_gates_from_backend(self.nm_backend)
                 self.backend.set_basis_gates(basis_gates)
 
+    def get_noise_model_metadata(self) -> dict:
+        """Return noise model metadata (T1/T2 per-qubit values) for upstream storage."""
+        return getattr(self, 'nm_metadata', {})
+
     def _setup_noise_model(self, configs):
         self.nm_backend = None
+        self.nm_metadata = {}
 
         selected_noise_model = configs.get("selected_noise_model")
         noise_models = configs.get("noise_models")
@@ -89,8 +94,9 @@ class CircuitSubmitter(_helpers.circuit_submitter.CircuitSubmitter):
         print(f"\n\nnoise model specs: {noise_model_specs}")
 
         if noise_model_specs:
-            noise_model_instance, nm_backend = craft_noise_model(noise_model_specs, self.pauli_mode)
+            noise_model_instance, nm_backend, nm_metadata = craft_noise_model(noise_model_specs, self.pauli_mode)
             self.nm_backend = nm_backend
+            self.nm_metadata = nm_metadata
             self._apply_noise_model(noise_model_instance)
             return
         

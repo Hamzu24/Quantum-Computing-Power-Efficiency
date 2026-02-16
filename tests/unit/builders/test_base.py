@@ -320,6 +320,111 @@ class TestConfigTracker:
             tracker.log_info()
 
 
+class TestConfigTrackerGetT1T2Values:
+    """Test ConfigTracker.get_T1_T2_values() method"""
+
+    def test_returns_empty_dict_when_no_configs(self):
+        """
+        Test get_T1_T2_values returns empty dict with no qubit configs
+
+        Expected: Returns {}
+        """
+        tracker = ConfigTracker()
+        assert tracker.get_T1_T2_values() == {}
+
+    def test_extracts_single_qubit(self):
+        """
+        Test get_T1_T2_values with a single qubit config
+
+        Expected: Returns dict with single-element T1 and T2 lists
+        """
+        tracker = ConfigTracker()
+        tracker.add_config({"config": {"T1": 50e-6, "T2": 70e-6}}, "qb")
+
+        result = tracker.get_T1_T2_values()
+
+        assert result == {
+            "T1_values": [50e-6],
+            "T2_values": [70e-6],
+        }
+
+    def test_extracts_multiple_qubits(self):
+        """
+        Test get_T1_T2_values with multiple qubit configs
+
+        Expected: Returns arrays with one value per qubit, preserving order
+        """
+        tracker = ConfigTracker()
+        tracker.add_config({"config": {"T1": 50e-6, "T2": 70e-6}}, "qb")
+        tracker.add_config({"config": {"T1": 60e-6, "T2": 80e-6}}, "qb")
+        tracker.add_config({"config": {"T1": 70e-6, "T2": 90e-6}}, "qb")
+
+        result = tracker.get_T1_T2_values()
+
+        assert result["T1_values"] == [50e-6, 60e-6, 70e-6]
+        assert result["T2_values"] == [70e-6, 80e-6, 90e-6]
+
+    def test_ignores_gate_configs(self):
+        """
+        Test that gate configs don't affect T1/T2 extraction
+
+        Expected: Only qubit configs are included
+        """
+        tracker = ConfigTracker()
+        tracker.add_config({"config": {"T1": 50e-6, "T2": 70e-6}}, "qb")
+        tracker.add_config({"config": {"gate_error": 0.01}}, "gate")
+
+        result = tracker.get_T1_T2_values()
+
+        assert len(result["T1_values"]) == 1
+        assert len(result["T2_values"]) == 1
+
+
+class TestConfigTrackerGetGateErrorValues:
+    """Test ConfigTracker.get_gate_error_values() method"""
+
+    def test_returns_empty_dict_when_no_configs(self):
+        """
+        Test get_gate_error_values returns empty dict with no gate configs
+
+        Expected: Returns {}
+        """
+        tracker = ConfigTracker()
+        assert tracker.get_gate_error_values() == {}
+
+    def test_extracts_gate_errors(self):
+        """
+        Test get_gate_error_values with multiple gate configs
+
+        Expected: Returns dict with gate_error_values list preserving order
+        """
+        tracker = ConfigTracker()
+        tracker.add_config({"config": {"gate_error": 0.005}}, "gate")
+        tracker.add_config({"config": {"gate_error": 0.012}}, "gate")
+        tracker.add_config({"config": {"gate_error": 0.008}}, "gate")
+
+        result = tracker.get_gate_error_values()
+
+        assert result == {
+            "gate_error_values": [0.005, 0.012, 0.008],
+        }
+
+    def test_ignores_qubit_configs(self):
+        """
+        Test that qubit configs don't affect gate error extraction
+
+        Expected: Only gate configs are included
+        """
+        tracker = ConfigTracker()
+        tracker.add_config({"config": {"T1": 50e-6, "T2": 70e-6}}, "qb")
+        tracker.add_config({"config": {"gate_error": 0.01}}, "gate")
+
+        result = tracker.get_gate_error_values()
+
+        assert len(result["gate_error_values"]) == 1
+        assert result["gate_error_values"][0] == 0.01
+
+
 class TestConfigTrackerEdgeCases:
     """Test edge cases and error conditions in ConfigTracker"""
 

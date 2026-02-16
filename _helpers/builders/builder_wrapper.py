@@ -21,8 +21,13 @@ class BuilderWrapper:
         logging.info(f"All available builders: {builder_registry.list_builders()}")
         self.builder = builder_registry.get_builder(builder_name)(name, self.config, self.json_manager, init_control_parameters)
 
-        self.builder.initialize_per_qubit_params()
-        logging.info(f"Initialized per-qubit parameters for {self.name}")
+        if hasattr(self.builder, 'initialize_per_qubit_params'):
+            self.builder.initialize_per_qubit_params()
+            logging.info(f"Initialized per-qubit parameters for {self.name}")
+
+        if hasattr(self.builder, 'initialize_per_gate_params'):
+            self.builder.initialize_per_gate_params()
+            logging.info(f"Initialized per-gate parameters for {self.name}")
     
     def find_group(self):
         group = None
@@ -50,15 +55,23 @@ class BuilderWrapper:
 
 
     
-    def build_backend(self, control_parameters):
+    def get_noise_model_metadata(self) -> dict:
+        if hasattr(self.builder, 'config_tracker'):
+            metadata = self.builder.config_tracker.get_T1_T2_values()
+            metadata.update(self.builder.config_tracker.get_gate_error_values())
+            return metadata
+        return {}
+
+    def build_backend(self, control_parameters) -> dict:
         control_parameter_registry.set_control_parameters(control_parameters)
         self._build_qubits(control_parameters)
         self._build_gates(control_parameters)
         self.json_manager.write()
-        
-        # Add a config_tracker if you need to log the final configs
-        if (self.builder, "config_tracker"):
+
+        if hasattr(self.builder, "config_tracker"):
             self.builder.config_tracker.log_info()
+
+        return self.get_noise_model_metadata()
 
     def _build_qubits(self, control_parameters):
         qubit_paths = self.json_manager.get_qubit_paths()
@@ -76,4 +89,7 @@ class BuilderWrapper:
             gate_param_path = gate_path + "parameters."
             for prop, val in gate_config.items():
                 if val is not None:
+                    if self.json_manager.find_path(prop, "value", gate_param_path) is None:
+                        logging.debug(f"Skipping property '{prop}' — not found in gate at {gate_path}")
+                        continue
                     self.json_manager.update_with_units(prop, val, gate_param_path)

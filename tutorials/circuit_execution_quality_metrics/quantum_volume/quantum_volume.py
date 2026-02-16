@@ -354,7 +354,7 @@ if __name__ == "__main__":
         noisy_heavy_outputs_dict[n_qubits] = noisy_heavy_outputs
         mean_noisy_heavy_outputs.append(np.mean(noisy_heavy_outputs))
 
-        os.environ["PERF_VALUE"] = str(mean_noisy_heavy_outputs)
+        os.environ["PERF_VALUE"] = str(mean_noisy_heavy_outputs[-1])
         
         plot_heavy_output_distribution(
             np.asarray(
