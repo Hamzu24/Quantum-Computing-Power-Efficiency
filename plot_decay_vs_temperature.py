@@ -43,18 +43,6 @@ def plot_decay_vs_temperature():
     ax.grid(True, alpha=0.3)
     ax.set_ylim(0, 1.05)
 
-    # Annotate the steepest drop region
-    diffs = np.diff(alphas)
-    steepest_idx = np.argmin(diffs)
-    ax.annotate(
-        f"Steepest drop:\n{temperatures[steepest_idx]}-{temperatures[steepest_idx+1]} {temp_unit}",
-        xy=(temperatures[steepest_idx + 1], alphas[steepest_idx + 1]),
-        xytext=(temperatures[steepest_idx + 1] + 10, alphas[steepest_idx + 1] + 0.15),
-        arrowprops=dict(arrowstyle="->", color="red", lw=1.5),
-        fontsize=10,
-        color="red",
-    )
-
     plt.tight_layout()
     out_path = "experiment_results_4/decay_vs_temperature.png"
     plt.savefig(out_path, dpi=150)
