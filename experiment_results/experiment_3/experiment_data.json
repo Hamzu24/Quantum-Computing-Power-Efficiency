@@ -1,9 +1,83 @@
 {
   "experiment_number": 3,
   "metric": "quantum_volume",
-  "total_trials": 3,
-  "failed_trials": 3,
+  "total_trials": 4,
+  "failed_trials": 0,
   "combined_plot_path": "experiment_results/experiment_3/Experiment 3: quantum_volume.png",
-  "trials": {},
-  "timestamp": "2026-02-12T23:28:29.539839"
+  "trials": {
+    "6qb, arrhenius": {
+      "trial_number": 3,
+      "params": {
+        "run_type": "optimiser",
+        "metric": "quantum_volume",
+        "num_qubits": 6,
+        "optimisation_iterations": 12,
+        "noise_model_type": "arrhenius",
+        "noise_model_additional_params": {
+          "gate_length": 2e-07
+        },
+        "control_parameters": {
+          "temperature": [
+            [
+              40,
+              "mK"
+            ],
+            [
+              13,
+              5,
+              "mK"
+            ]
+          ]
+        }
+      },
+      "metric": "quantum_volume",
+      "performances": [
+        0.8509444599999999,
+        0.8507446560000002,
+        0.8473229099999999,
+        0.8283108820000001,
+        0.7754879029999999,
+        0.6892722980000001,
+        0.601723081,
+        0.5437360870000001,
+        0.51624931,
+        0.505310492,
+        0.500953296,
+        0.499051031
+      ],
+      "temperatures": [
+        0.068,
+        0.068,
+        0.068,
+        0.068,
+        0.068,
+        0.068,
+        0.068,
+        0.068,
+        0.068,
+        0.068,
+        0.068,
+        0.068
+      ],
+      "plot_path": "experiment_results/experiment_3/trials/trial3_quantum_volume_6qb, arrhenius.png",
+      "nm_metadata": [
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {}
+      ],
+      "metadata_plot_path": null,
+      "duration_seconds": 297.717761,
+      "timestamp": "2026-02-24T04:54:40.646335"
+    }
+  },
+  "timestamp": "2026-02-24T04:59:38.568301"
 }

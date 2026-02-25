@@ -1,11 +1,13 @@
 import json
 import os
+import datetime
 from _helpers.json_manager import JsonManager
 import logging
 from _helpers.constants import HARDWARE_CONFIG_GROUPS
 from _helpers.builders.base import builder_registry
 from _helpers.registry import control_parameter_registry
 from _helpers.builders.default_builder import DefaultBuilder
+from _helpers.helpers import get_config_value
 
 class BuilderWrapper:
     def __init__(self, name: str, init_control_parameters: dict):
@@ -62,6 +64,39 @@ class BuilderWrapper:
             return metadata
         return {}
 
+    def log_qubit_params(self, control_parameters: dict):
+        """Log all per-qubit physics parameters to a JSON file in logs/."""
+        if not hasattr(self.builder, 'get_all_qubit_params_at_T'):
+            return
+
+        T = get_config_value(control_parameters, "temperature")
+        if T is None:
+            return
+
+        all_params = self.builder.get_all_qubit_params_at_T(T)
+
+        logs_dir = os.path.join(os.getcwd(), "logs")
+        os.makedirs(logs_dir, exist_ok=True)
+
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        T_mK = T * 1e3
+        filename = f"qubit_params_{self.name}_{T_mK:.1f}mK_{timestamp}.json"
+        filepath = os.path.join(logs_dir, filename)
+
+        log_data = {
+            "backend": self.name,
+            "temperature_K": T,
+            "temperature_mK": T_mK,
+            "timestamp": timestamp,
+            "num_qubits": len(all_params),
+            "qubits": {str(k): v for k, v in all_params.items()},
+        }
+
+        with open(filepath, "w") as f:
+            json.dump(log_data, f, indent=2)
+
+        logging.info(f"Qubit parameters logged to {filepath}")
+
     def build_backend(self, control_parameters) -> dict:
         control_parameter_registry.set_control_parameters(control_parameters)
         self._build_qubits(control_parameters)
@@ -70,6 +105,8 @@ class BuilderWrapper:
 
         if hasattr(self.builder, "config_tracker"):
             self.builder.config_tracker.log_info()
+
+        self.log_qubit_params(control_parameters)
 
         return self.get_noise_model_metadata()
 

@@ -36,7 +36,7 @@ class RandomNoiseModel:
         "overrotation_std": np.pi / 100,
     }
 
-    def __init__(self, config: dict, resolved_control_parameters: dict):
+    def __init__(self, config: dict):
         """
         Initialize the random noise model.
 
@@ -48,7 +48,6 @@ class RandomNoiseModel:
                 - T2_mean, T2_std: Mean and std for T2 sampling (default: 70e3, 1e3)
                 - detuning_mean, detuning_std: Detuning error parameters
                 - overrotation_mean, overrotation_std: Overrotation error parameters
-            resolved_control_parameters: Resolved control parameters (not used)
         """
         overall_config_data = read_config()
         self.num_qubits = overall_config_data.get("num_qubits")
@@ -57,7 +56,6 @@ class RandomNoiseModel:
 
         # Now dealing with the noise model config:
         self.config = config
-        self.resolved_control_parameters = resolved_control_parameters
 
         # Extract parameters with defaults
         self.seed = config.get("seed", self.optional_parameters["seed"])

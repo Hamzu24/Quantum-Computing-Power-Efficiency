@@ -32,6 +32,7 @@ class CircuitSubmitter():
         self.initialise()
         self.circuits_padded = 0
         self.tasks = []
+        self.sample_circuit = None
 
     def initialise(self):
         """Initialise the folder structure and record device calibration details."""
@@ -149,6 +150,9 @@ class CircuitSubmitter():
             else:
                 raise ValueError("One and only one of qasm_strs or qasm_paths should be used")
 
+            if self.sample_circuit is None and circuits:
+                self.sample_circuit = circuits[0].copy()
+
             if self.device_name == "OQCDirect":
                 circuits = [c.qasm() for c in circuits]
             
@@ -174,6 +178,8 @@ class CircuitSubmitter():
             if self.device_name in ["noisy_sim", "noisy_sim_with_shots", "noiseless_sim"]:
                 if qasm_strs is not None:
                     circuits = [QuantumCircuit.from_qasm_str(string) for string in qasm_strs]
+                    if self.sample_circuit is None and circuits:
+                        self.sample_circuit = circuits[0].copy()
 
 
         # Prompts user to confirm submitting circuits
@@ -267,6 +273,12 @@ class CircuitSubmitter():
         counts = {k[::-1]: v for k, v in counts.items()}
         return counts
 
+
+    def get_sample_circuit_figure(self):
+        """Return a matplotlib Figure of a sample circuit, or None."""
+        if self.sample_circuit is None:
+            return None
+        return self.sample_circuit.draw(output="mpl")
 
     def compile_to_native_json(self, circuit):
         qubit_phase = [0] * 32

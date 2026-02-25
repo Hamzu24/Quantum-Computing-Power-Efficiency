@@ -35,7 +35,7 @@ class SimpleNoiseModel:
         "detuning_amount": np.pi / 120,
     }
 
-    def __init__(self, config: dict, resolved_control_parameters: dict):
+    def __init__(self, config: dict):
         """
         Initialize the simple noise model.
 
@@ -47,7 +47,6 @@ class SimpleNoiseModel:
                 - instruction_times: Dict of gate times (default: DEFAULT_INSTRUCTION_TIMES)
                 - overrotation_amount: Overrotation angle (default: pi/100)
                 - detuning_amount: Detuning angle (default: pi/120)
-            resolved_control_parameters: Resolved control parameters (not used)
         """
         overall_config_data = read_config()
         self.num_qubits = overall_config_data.get("num_qubits")
@@ -57,7 +56,6 @@ class SimpleNoiseModel:
 
         # Now dealing with the noise model config
         self.config = config
-        self.resolved_control_parameters = resolved_control_parameters
 
         # Extract parameters with defaults
         self.T1s = config.get("T1s", self.optional_parameters["T1s"])

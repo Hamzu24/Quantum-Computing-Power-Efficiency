@@ -24,6 +24,10 @@ def run_metric(metric_path=DEFAULT_PATH, calculate_consumption=False):
     if submitter is not None and hasattr(submitter, 'get_noise_model_metadata'):
         nm_metadata = submitter.get_noise_model_metadata()
 
+    circuit_fig = None
+    if submitter is not None and hasattr(submitter, 'get_sample_circuit_figure'):
+        circuit_fig = submitter.get_sample_circuit_figure()
+
     if calculate_consumption:
         total_consumption, staggered_consumptions = submitter.get_power_consumption()
 
@@ -36,9 +40,9 @@ def run_metric(metric_path=DEFAULT_PATH, calculate_consumption=False):
             print(f"{num_qb} qubit power consumption: {sum(cons.values())}")
             consumption_dict["staggered_consumptions"].append(total_consumption)
 
-        return {"performance": performance, "power_consumption": consumption_dict, "nm_metadata": nm_metadata}
+        return {"performance": performance, "power_consumption": consumption_dict, "nm_metadata": nm_metadata, "circuit_figure": circuit_fig}
     else:
-        return {"performance": performance, "nm_metadata": nm_metadata}
+        return {"performance": performance, "nm_metadata": nm_metadata, "circuit_figure": circuit_fig}
 
 if __name__ == "__main__":
     os.environ["CONFIG_PATH"] = "configs.json"

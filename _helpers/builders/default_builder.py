@@ -67,7 +67,7 @@ class DefaultBuilder:
 
         # Step 1: E_c from anharmonicity
         anharmonicity = self.json_manager.find_value_with_units("anharmonicity", qb_path)
-        if anharmonicity is not None:
+        if anharmonicity is not None and anharmonicity != 0:
             E_c = h * abs(anharmonicity)
         else:
             E_c = self.config.get("E_c")
@@ -269,6 +269,67 @@ class DefaultBuilder:
             T_psi_i = self.T_psi(T, qp)
             rate_sum += 1/T1_i + 1/T_psi_i
         return 1 - (d * gate_length) / (2 * (d + 1)) * rate_sum
+
+    # ── Parameter collection (for logging) ─────────────────────────────
+
+    def get_all_qubit_params_at_T(self, T: float) -> dict:
+        """Collect all per-qubit parameters (constant + temperature-dependent) at temperature T.
+
+        Returns a dict keyed by qubit index with all intermediate physics parameters.
+        No gate errors or gate parameters are included.
+        """
+        all_params = {}
+        for qb_path in self.json_manager.get_qubit_paths():
+            # Extract qubit index from path like "qubits.[3]."
+            qb_idx = int(qb_path.split("[")[1].split("]")[0])
+            qp = self.get_qubit_params(qb_path)
+
+            # Read calibrated values from backend
+            T1_meas = self.json_manager.find_value_with_units("T1", qb_path)
+            T2_meas = self.json_manager.find_value_with_units("T2", qb_path)
+            frequency = self.json_manager.find_value_with_units("frequency", qb_path)
+            anharmonicity = self.json_manager.find_value_with_units("anharmonicity", qb_path)
+            prob_meas1_prep0 = self.json_manager.find_value_with_units("prob_meas1_prep0", qb_path)
+
+            # Temperature-dependent parameters
+            x_qp_val = self.x_qp(T)
+            n_eff_val = self.n_eff(T, qp)
+            gamma_qp_val = self.gamma_qp(T, qp)
+            gamma_psi_qp_val = self.gamma_psi_qp(T, qp)
+            T1_val = self.T1(T, qp)
+            T_psi_val = self.T_psi(T, qp)
+            T2_val = self.T2(T, qp)
+
+            all_params[qb_idx] = {
+                # Calibrated inputs
+                "frequency_Hz": frequency,
+                "anharmonicity_Hz": anharmonicity,
+                "T1_meas_s": T1_meas,
+                "T2_meas_s": T2_meas,
+                "prob_meas1_prep0": prob_meas1_prep0,
+                # Constant derived parameters
+                "E_c_J": qp["E_c"],
+                "E_J_J": qp["E_J"],
+                "E_J_over_E_c": qp["E_J"] / qp["E_c"],
+                "w_ge_rad_per_s": qp["w_ge"],
+                "w_p_rad_per_s": qp["w_p"],
+                "R_n_Ohm": qp["R_n"],
+                "N_e": qp["N_e"],
+                "T_env_K": qp["T_env"],
+                "y0_per_s": qp["y0"],
+                "gamma_psi_base_per_s": qp["gamma_psi_base"],
+                # Temperature-dependent parameters
+                "temperature_K": T,
+                "x_qp": x_qp_val,
+                "n_eff": n_eff_val,
+                "gamma_qp_per_s": gamma_qp_val,
+                "gamma_psi_qp_per_s": gamma_psi_qp_val,
+                "T1_s": T1_val,
+                "T_psi_s": T_psi_val,
+                "T2_s": T2_val,
+            }
+
+        return all_params
 
     # ── Backend building ──────────────────────────────────────────────
 

@@ -4,7 +4,7 @@ from qiskit_aer.noise import NoiseModel, thermal_relaxation_error
 from _helpers.noise_models.base import (
     noise_model_registry, CustomNoiseModelBackend
 )
-from _helpers.helpers import get_config_value
+from _helpers.helpers import get_config_value, get_control_parameters
 from _helpers.constants import (
     DefaultBasisGatesNoiseless, DefaultBasisGates1qb, DefaultBasisGates2qb,
     StimBasisGates
@@ -32,7 +32,7 @@ class ArrheniusNoiseModel:
     K_B = 1.380649e-23  # Boltzmann constant
     H = 6.626070e-34    # Planck constant
 
-    def __init__(self, config: dict, resolved_control_parameters: dict):
+    def __init__(self, config: dict):
         """
         Initialize the Arrhenius noise model.
 
@@ -40,11 +40,9 @@ class ArrheniusNoiseModel:
             config: Configuration dictionary containing optional parameters:
                 - qubit_frequency_hz: Qubit frequency in Hz (default: 5e9)
                 - gate_length: Gate length in seconds (default: 50e-9)
-            resolved_control_parameters: Resolved control parameters containing:
-                - temperature: Temperature value and unit (required)
+                - control_parameters: Must contain temperature
         """
         self.config = config
-        self.resolved_control_parameters = resolved_control_parameters
 
         # Extract parameters with defaults
         self.qubit_frequency_hz = config.get(
@@ -58,7 +56,8 @@ class ArrheniusNoiseModel:
 
     def validate(self) -> None:
         """Validate that temperature is available in control parameters."""
-        temperature = get_config_value(self.resolved_control_parameters, "temperature")
+        control_parameters = get_control_parameters(self.config)
+        temperature = get_config_value(control_parameters, "temperature")
         if temperature is None:
             raise ValueError(
                 "Arrhenius noise model requires 'temperature' in control_parameters"
@@ -71,8 +70,9 @@ class ArrheniusNoiseModel:
         Returns:
             Tuple of (NoiseModel, CustomNoiseModelBackend)
         """
-        # Get temperature from control parameters
-        T = get_config_value(self.resolved_control_parameters, "temperature")
+        # Get temperature from current control parameters (re-resolved each build)
+        control_parameters = get_control_parameters(self.config)
+        T = get_config_value(control_parameters, "temperature")
 
         # Calculate qubit energy
         E = self.H * self.qubit_frequency_hz

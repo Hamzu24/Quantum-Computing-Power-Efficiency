@@ -3,18 +3,21 @@
         "delta": 2.88e-23,
         "ymxc_y0": 0.9,
         "subgap_transparency": 5e-5,
-        "builder_class": "DefaultBuilder",
+        "E_c": 2.12e-25,
+        "builder_class": "DefaultBuilder"
     },
     "intermediate": {
         "delta": 2.88e-23,
         "ymxc_y0": 0.85,
         "subgap_transparency": 1e-4,
-        "builder_class": "DefaultBuilder",
+        "E_c": 2.21e-25,
+        "builder_class": "DefaultBuilder"
     },
     "legacy": {
         "delta": 2.88e-23,
         "ymxc_y0": 0.8,
         "subgap_transparency": 5e-4,
-        "builder_class": "DefaultBuilder",
+        "E_c": 2.19e-25,
+        "builder_class": "DefaultBuilder"
     }
 }

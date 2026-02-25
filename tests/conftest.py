@@ -13,6 +13,9 @@ from pathlib import Path
 # Add project root to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.resolve()))
 
+# Import circuit fixtures so they are available to all tests
+from tests.fixtures.circuit_fixtures import *  # noqa: F401,F403
+
 
 @pytest.fixture(autouse=True)
 def reset_registries():

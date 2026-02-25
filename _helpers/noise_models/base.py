@@ -10,7 +10,7 @@ class NoiseModelFactory(Protocol):
     required_parameters: ClassVar[List[str]]
     optional_parameters: ClassVar[dict[str, Any]]
 
-    def __init__(self, config: dict, resolved_control_parameters: dict): ...
+    def __init__(self, config: dict): ...
 
     def validate(self) -> None:
         """Validate that all required parameters are present in the config."""

@@ -17,7 +17,11 @@ ALGORITHM_PATHS = {
     "grover": "tutorials/circuit_execution_quality_metrics/grovers_search/grovers_search.py",
     "vqe": "tutorials/well_studied_task_execution_quality_metrics/vqe/vqe.py",
     "stim_test": "tutorials/qec_metrics/simple_stim_test/simple_stim_test.py",
-    "clifford_qv": "tutorials/qec_metrics/clifford_quantum_volume/clifford_quantum_volume.py"
+    "clifford_qv": "tutorials/qec_metrics/clifford_quantum_volume/clifford_quantum_volume.py",
+    "mirror_benchmarking": "tutorials/circuit_execution_quality_metrics/mirror_benchmarking/mirror_benchmarking.py",
+    "mirror_rb": "tutorials/circuit_execution_quality_metrics/mirror_benchmarking/mirror_benchmarking.py",
+    "eplg": "tutorials/circuit_execution_quality_metrics/eplg/eplg.py",
+    "error_per_layered_gate": "tutorials/circuit_execution_quality_metrics/eplg/eplg.py",
 }
 
 

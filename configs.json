@@ -1,8 +1,9 @@
 {
-  "num_qubits": 4,
+  "num_qubits": 8,
   "circuit_optimisation_level": 3,
-  "optimisation_iterations": 3,
+  "optimisation_iterations": 24,
   "max_parallel_circuits": 10,
+  "mirror_depth": 4,
   "selected_noise_model": "experiment",
   "device_tracking": {
     "noiseless_sim": 0,
@@ -22,7 +23,7 @@
   "noise_models": {
     "experiment": {
       "type": "fake_backend",
-      "name": "jakarta",
+      "name": "washington",
       "control_parameters": {
         "temperature": [
           [
@@ -31,7 +32,7 @@
           ],
           [
             13,
-            50,
+            5,
             "mK"
           ]
         ]
@@ -44,5 +45,5 @@
       }
     }
   },
-  "noise_model_name": "sherbrooke"
+  "noise_model_name": "washington"
 }

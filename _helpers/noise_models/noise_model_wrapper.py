@@ -1,7 +1,6 @@
 from typing import Tuple, Any
 from qiskit_aer.noise import NoiseModel
 from _helpers.noise_models.base import noise_model_registry
-from _helpers.helpers import get_control_parameters
 
 
 class NoiseModelWrapper:
@@ -18,15 +17,9 @@ class NoiseModelWrapper:
                 f"Available types: {noise_model_registry.list_factories()}"
             )
 
-        # Resolve control parameters from config if present
-        if config.get("control_parameters"):
-            self.resolved_control_parameters = get_control_parameters(config)
-        else:
-            self.resolved_control_parameters = {}
-
         # Get the factory class and instantiate it
         factory_class = noise_model_registry.get(self.noise_model_type)
-        self.factory = factory_class(config, self.resolved_control_parameters)
+        self.factory = factory_class(config)
 
     def build(self) -> Tuple[NoiseModel, Any]:
         """

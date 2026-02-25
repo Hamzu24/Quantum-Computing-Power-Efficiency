@@ -36,89 +36,92 @@ experiments = [
 
     # Exp 0: Qubit scaling on Sherbrooke (Eagle 127q) - how does heavy output degrade with width?
     [
-        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 4, "optimisation_iterations": 12,
-         "noise_model_type": "fake_backend", "noise_model_name": "sherbrooke",
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 4, "optimisation_iterations": 24,
+         "noise_model_type": "fake_backend", "noise_model_name": "washington",
          "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
-        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 6, "optimisation_iterations": 12,
-         "noise_model_type": "fake_backend", "noise_model_name": "sherbrooke",
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 6, "optimisation_iterations": 24,
+         "noise_model_type": "fake_backend", "noise_model_name": "washington",
          "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
-        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 8, "optimisation_iterations": 12,
-         "noise_model_type": "fake_backend", "noise_model_name": "sherbrooke",
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 8, "optimisation_iterations": 24,
+         "noise_model_type": "fake_backend", "noise_model_name": "washington",
          "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
-        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 10, "optimisation_iterations": 12,
-         "noise_model_type": "fake_backend", "noise_model_name": "sherbrooke",
-         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
-    ],
-
-    # Exp 1: Generational comparison @ 6 qubits - Modern vs Intermediate vs Legacy
-    #   Compare how the same circuit width performs on different hardware generations.
-    #   T1/T2 plots will show the per-qubit spread characteristic of each backend.
-    [
-        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 6, "optimisation_iterations": 12,
-         "noise_model_type": "fake_backend", "noise_model_name": "sherbrooke",
-         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
-        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 6, "optimisation_iterations": 12,
-         "noise_model_type": "fake_backend", "noise_model_name": "montreal",
-         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
-        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 6, "optimisation_iterations": 12,
-         "noise_model_type": "fake_backend", "noise_model_name": "tokyo",
-         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
-    ],
-
-    # Exp 2: Wide temperature sweep on Perth (7q) - finer resolution to see T1/T2 transition
-    #   20 iterations from 13mK to 108mK in 5mK steps. Shows the thermal degradation curve
-    #   and how the T1/T2 box-and-whisker spread changes through the transition region.
-    [
-        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 4, "optimisation_iterations": 20,
-         "noise_model_type": "fake_backend", "noise_model_name": "perth",
-         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
-        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 6, "optimisation_iterations": 20,
-         "noise_model_type": "fake_backend", "noise_model_name": "perth",
-         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
-    ],
-
-    # Exp 3: Eagle processor comparison @ 4 qubits - same architecture, different chips
-    #   Sherbrooke vs Prague vs Washington: all Eagle r3 127q processors.
-    #   T1/T2 plots reveal chip-to-chip variability within the same generation.
-    [
-        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 4, "optimisation_iterations": 12,
-         "noise_model_type": "fake_backend", "noise_model_name": "sherbrooke",
-         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
-        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 4, "optimisation_iterations": 12,
-         "noise_model_type": "fake_backend", "noise_model_name": "prague",
-         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
-        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 4, "optimisation_iterations": 12,
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 10, "optimisation_iterations": 24,
          "noise_model_type": "fake_backend", "noise_model_name": "washington",
          "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
     ],
 
-    # Exp 4: Small backends head-to-head @ 4 qubits - Perth vs Oslo vs Lagos vs Jakarta
-    #   All 7q Falcon backends. Shows whether small-qubit-count chips have tighter T1/T2
-    #   distributions than large chips, and how that affects heavy output probability.
+    # Exp 1: Qubit scaling on Geneva
     [
-        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 4, "optimisation_iterations": 12,
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 4, "optimisation_iterations": 24,
+         "noise_model_type": "fake_backend", "noise_model_name": "geneva",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 6, "optimisation_iterations": 24,
+         "noise_model_type": "fake_backend", "noise_model_name": "geneva",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 8, "optimisation_iterations": 24,
+         "noise_model_type": "fake_backend", "noise_model_name": "geneva",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 10, "optimisation_iterations": 24,
+         "noise_model_type": "fake_backend", "noise_model_name": "geneva",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+    ],
+    # Exp 2: Qubit scaling on Perth
+    [
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 4, "optimisation_iterations": 24,
          "noise_model_type": "fake_backend", "noise_model_name": "perth",
          "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
-        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 4, "optimisation_iterations": 12,
-         "noise_model_type": "fake_backend", "noise_model_name": "oslo",
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 6, "optimisation_iterations": 24,
+         "noise_model_type": "fake_backend", "noise_model_name": "perth",
          "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
-        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 4, "optimisation_iterations": 12,
-         "noise_model_type": "fake_backend", "noise_model_name": "lagos",
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 8, "optimisation_iterations": 24,
+         "noise_model_type": "fake_backend", "noise_model_name": "perth",
          "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
-        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 4, "optimisation_iterations": 12,
-         "noise_model_type": "fake_backend", "noise_model_name": "jakarta",
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 10, "optimisation_iterations": 24,
+         "noise_model_type": "fake_backend", "noise_model_name": "perth",
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+    ],
+
+    # Exp 5: Arrhenius gate-length comparison — QV vs temperature at different gate durations
+    #   Each trial uses the arrhenius noise model with a different gate_length.
+    #   Shows how gate duration amplifies thermal noise impact on QV.
+    [
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 6, "optimisation_iterations": 24,
+         "noise_model_type": "arrhenius",
+         "noise_model_additional_params": {"gate_length": 20e-9},
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 6, "optimisation_iterations": 24,
+         "noise_model_type": "arrhenius",
+         "noise_model_additional_params": {"gate_length": 50e-9},
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 6, "optimisation_iterations": 24,
+         "noise_model_type": "arrhenius",
+         "noise_model_additional_params": {"gate_length": 100e-9},
+         "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
+        {"run_type": "optimiser", "metric": "quantum_volume", "num_qubits": 6, "optimisation_iterations": 24,
+         "noise_model_type": "arrhenius",
+         "noise_model_additional_params": {"gate_length": 200e-9},
          "control_parameters": {"temperature": [[40, "mK"], [13, 5, "mK"]]}},
     ],
 ]
 
-DEFAULT_OUTPUT_DIR = "experiment_results"
+DEFAULT_OUTPUT_DIR_PREFIX = "experiment_results"
+
+
+def _next_output_dir() -> str:
+    """Find the next available experiment_results_N directory."""
+    i = 0
+    while True:
+        candidate = Path(f"{DEFAULT_OUTPUT_DIR_PREFIX}_{i}")
+        if not candidate.exists():
+            return str(candidate)
+        i += 1
 
 # ============================================================================
 # EXPERIMENT RUNNER
 # ============================================================================
 
 class ExperimentRunner:
-    def __init__(self, output_dir: str = DEFAULT_OUTPUT_DIR):
+    def __init__(self, output_dir: str = DEFAULT_OUTPUT_DIR_PREFIX):
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True)
 
@@ -483,8 +486,8 @@ def main():
         help="Only show preview of experiments, don't run"
     )
     parser.add_argument(
-        "--output-dir", type=str, default=DEFAULT_OUTPUT_DIR,
-        help="Directory to save experiment results"
+        "--output-dir", type=str, default=None,
+        help="Directory to save experiment results (auto-increments if not specified)"
     )
     parser.add_argument(
         "--log", type=str, default="WARNING",
@@ -500,7 +503,8 @@ def main():
     log_level = getattr(logging, args.log.upper())
     set_up_logger(log_level, None)
 
-    runner = ExperimentRunner(output_dir=args.output_dir)
+    output_dir = args.output_dir if args.output_dir else _next_output_dir()
+    runner = ExperimentRunner(output_dir=output_dir)
 
     print_experiment_preview(experiments)
 
